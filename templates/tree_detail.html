@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>{{ tree.name }}</h1>
+<div class="mb-3">
+    <a href="{{ url_for('add_person', tree_id=tree.id) }}" class="btn btn-success">Добавить персону</a>
+    <a href="{{ url_for('add_marriage', tree_id=tree.id) }}" class="btn btn-outline-primary">Добавить брак</a>
+</div>
+
+{% if persons %}
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>ФИО</th>
+                <th>Дата рождения</th>
+                <th>Город</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for p in persons %}
+            <tr>
+                <td><a href="{{ url_for('person_detail', tree_id=tree.id, person_id=p.id) }}">{{ p.full_name }}</a></td>
+                <td>{{ p.birth_date.strftime('%d.%m.%Y') if p.birth_date else '-' }}</td>
+                <td>{{ p.city or '-' }}</td>
+                <td>
+                    <a href="{{ url_for('edit_person', tree_id=tree.id, person_id=p.id) }}" class="btn btn-sm btn-warning">Изм.</a>
+                    <form method="POST" action="{{ url_for('delete_person', tree_id=tree.id, person_id=p.id) }}" style="display:inline" onsubmit="return confirm('Удалить персону и все её связи?')">
+                        <button class="btn btn-sm btn-danger">Уд.</button>
+                    </form>
+                </td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+{% else %}
+    <p>В дереве ещё нет людей. Добавьте первую персону.</p>
+{% endif %}
+<a href="{{ url_for('index') }}" class="btn btn-secondary">К списку деревьев</a>
+{% endblock %}

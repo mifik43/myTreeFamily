@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Добавить брак в дереве «{{ tree.name }}»</h1>
+<form method="POST">
+    <div class="row">
+        <div class="col-md-6 mb-3">
+            <label>Муж</label>
+            <select name="husband_id" class="form-select" required>
+                <option value="">-- выберите --</option>
+                {% for p in persons if p.gender == 'M' %}
+                    <option value="{{ p.id }}">{{ p.full_name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-6 mb-3">
+            <label>Жена</label>
+            <select name="wife_id" class="form-select" required>
+                <option value="">-- выберите --</option>
+                {% for p in persons if p.gender == 'F' %}
+                    <option value="{{ p.id }}">{{ p.full_name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+    <div class="mb-3">
+        <label>Дата свадьбы</label>
+        <input type="date" name="marriage_date" class="form-control">
+    </div>
+    <button class="btn btn-primary">Добавить брак</button>
+    <a href="{{ url_for('tree_detail', tree_id=tree.id) }}" class="btn btn-secondary">Назад</a>
+</form>
+{% endblock %}

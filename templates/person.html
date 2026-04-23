@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>{{ person.full_name }}</h1>
+<div class="card mb-4">
+    <div class="card-body">
+        <p><strong>Пол:</strong> {{ 'Мужской' if person.gender == 'M' else 'Женский' }}</p>
+        <p><strong>Дата рождения:</strong> {{ person.birth_date.strftime('%d.%m.%Y') if person.birth_date else 'неизвестно' }}</p>
+        <p><strong>Дата смерти:</strong> {{ person.death_date.strftime('%d.%m.%Y') if person.death_date else 'жив(а)' }}</p>
+        <p><strong>Город:</strong> {{ person.city or '-' }}</p>
+        {% if parents %}
+        <p><strong>Родители:</strong>
+            {% for parent in parents %}
+                <a href="{{ url_for('person_detail', tree_id=tree.id, person_id=parent.id) }}">{{ parent.full_name }}</a>{% if not loop.last %}, {% endif %}
+            {% endfor %}
+        {% else %}
+            <p><em>Родители не указаны</em></p>
+        {% endif %}
+        </p>
+    </div>
+</div>
+
+<!-- Супруги -->
+<h3>Супруги</h3>
+{% if spouses %}
+    <ul>
+    {% for sp in spouses %}
+        <li><a href="{{ url_for('person_detail', tree_id=tree.id, person_id=sp.id) }}">{{ sp.full_name }}</a></li>
+    {% endfor %}
+    </ul>
+{% else %}
+    <p>Нет записей о браке</p>
+{% endif %}
+<a href="{{ url_for('add_marriage', tree_id=tree.id) }}" class="btn btn-sm btn-outline-primary mb-3">Добавить брак</a>
+
+<!-- Дети -->
+<h3>Дети</h3>
+{% if children %}
+    <ul>
+    {% for child in children %}
+        <li><a href="{{ url_for('person_detail', tree_id=tree.id, person_id=child.id) }}">{{ child.full_name }}</a></li>
+    {% endfor %}
+    </ul>
+{% else %}
+    <p>Нет детей</p>
+{% endif %}
+
+<!-- Братья/сёстры -->
+<h3>Братья/сёстры</h3>
+{% if siblings %}
+    <ul>
+    {% for sib in siblings %}
+        <li><a href="{{ url_for('person_detail', tree_id=tree.id, person_id=sib.id) }}">{{ sib.full_name }}</a></li>
+    {% endfor %}
+    </ul>
+{% else %}
+    <p>Нет известных братьев/сестёр</p>
+{% endif %}
+
+<div class="mt-3">
+    <a href="{{ url_for('edit_person', tree_id=tree.id, person_id=person.id) }}" class="btn btn-warning">Редактировать</a>
+    <a href="{{ url_for('tree_detail', tree_id=tree.id) }}" class="btn btn-secondary">Назад к дереву</a>
+</div>
+{% endblock %}

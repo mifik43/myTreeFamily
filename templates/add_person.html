@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>{% if edit %}Редактирование{% else %}Добавление{% endif %} персоны в дереве «{{ tree.name }}»</h1>
+<form method="POST">
+    <div class="row">
+        <div class="col-md-6 mb-3">
+            <label>Фамилия *</label>
+            <input type="text" name="surname" class="form-control" value="{{ person.surname if edit else '' }}" required>
+        </div>
+        <div class="col-md-6 mb-3">
+            <label>Имя *</label>
+            <input type="text" name="name" class="form-control" value="{{ person.name if edit else '' }}" required>
+        </div>
+    </div>
+    <div class="mb-3">
+        <label>Отчество</label>
+        <input type="text" name="patronymic" class="form-control" value="{{ person.patronymic if edit and person.patronymic else '' }}">
+    </div>
+    <div class="row">
+        <div class="col-md-6 mb-3">
+            <label>Дата рождения</label>
+            <input type="date" name="birth_date" class="form-control" value="{{ person.birth_date.strftime('%Y-%m-%d') if edit and person.birth_date else '' }}">
+        </div>
+        <div class="col-md-6 mb-3">
+            <label>Дата смерти</label>
+            <input type="date" name="death_date" class="form-control" value="{{ person.death_date.strftime('%Y-%m-%d') if edit and person.death_date else '' }}">
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-md-6 mb-3">
+            <label>Город</label>
+            <input type="text" name="city" class="form-control" value="{{ person.city if edit else '' }}">
+        </div>
+        <div class="col-md-6 mb-3">
+            <label>Пол *</label>
+            <select name="gender" class="form-select" required>
+                <option value="M" {% if edit and person.gender == 'M' %}selected{% endif %}>Мужской</option>
+                <option value="F" {% if edit and person.gender == 'F' %}selected{% endif %}>Женский</option>
+            </select>
+        </div>
+    </div>
+
+    {% if edit and all_persons %}
+    <h4>Родители</h4>
+    <div class="row">
+        <div class="col-md-6 mb-3">
+            <label>Отец</label>
+            <select name="father_id" class="form-select">
+                <option value="">-- не выбран --</option>
+                {% for p in all_persons if p.gender == 'M' and p.id != person.id %}
+                    <option value="{{ p.id }}" {% if person.father_id == p.id %}selected{% endif %}>{{ p.full_name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-6 mb-3">
+            <label>Мать</label>
+            <select name="mother_id" class="form-select">
+                <option value="">-- не выбрана --</option>
+                {% for p in all_persons if p.gender == 'F' and p.id != person.id %}
+                    <option value="{{ p.id }}" {% if person.mother_id == p.id %}selected{% endif %}>{{ p.full_name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+    {% endif %}
+
+    <button class="btn btn-primary">Сохранить</button>
+    <a href="{{ url_for('tree_detail', tree_id=tree.id) if not edit else url_for('person_detail', tree_id=tree.id, person_id=person.id) }}" class="btn btn-secondary">Отмена</a>
+</form>
+{% endblock %}

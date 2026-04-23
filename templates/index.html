@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Мои деревья</h1>
+<form method="POST" action="{{ url_for('create_tree') }}" class="row g-3 mb-4">
+    <div class="col-auto">
+        <input type="text" name="name" class="form-control" placeholder="Название нового дерева" required>
+    </div>
+    <div class="col-auto">
+        <button class="btn btn-primary">Создать</button>
+    </div>
+</form>
+
+{% if trees %}
+    <div class="list-group">
+    {% for tree in trees %}
+        <a href="{{ url_for('tree_detail', tree_id=tree.id) }}" class="list-group-item list-group-item-action">
+            {{ tree.name }} <span class="badge bg-secondary">{{ tree.persons|length }} чел.</span>
+        </a>
+    {% endfor %}
+    </div>
+{% else %}
+    <p>У вас пока нет деревьев. Создайте первое!</p>
+{% endif %}
+{% endblock %}

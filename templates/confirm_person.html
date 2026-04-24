@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Найдены возможные дубликаты</h1>
+<p>Создаваемая персона: <strong>{{ surname }} {{ name }} {{ patronymic }}</strong>, дата рождения: {{ birth_date }}</p>
+
+{% if duplicates.own %}
+    <h3>В вашем дереве</h3>
+    <ul>
+    {% for dup in duplicates.own %}
+        <li>{{ dup.full_name }} ({{ dup.birth_date.strftime('%d.%m.%Y') if dup.birth_date else '?' }}) – дерево «{{ dup.tree.name }}»</li>
+    {% endfor %}
+    </ul>
+    <p>Возможно, вы уже добавляли этого человека.</p>
+{% endif %}
+
+{% if duplicates.others %}
+    <h3>В деревьях других пользователей</h3>
+    <ul>
+    {% for dup, username, email in duplicates.others %}
+        <li>
+            {{ dup.full_name }} ({{ dup.birth_date.strftime('%d.%m.%Y') if dup.birth_date else '?' }}) –
+            владелец: <strong>{{ username }}</strong>
+            {% if email %}
+                (<a href="mailto:{{ email }}">{{ email }}</a>)
+            {% else %}
+                (контакт не указан)
+            {% endif %}
+        </li>
+    {% endfor %}
+    </ul>
+    <p>Это могут быть записи об одном и том же человеке. Вы можете связаться с владельцем, чтобы обменяться данными.</p>
+{% endif %}
+
+<hr>
+<p>Вы всё равно можете добавить эту персону (пропустить проверку).</p>
+
+<form method="POST" action="{{ url_for('confirm_person') }}">
+    <!-- Скрытые поля с исходными данными -->
+    <input type="hidden" name="surname" value="{{ surname }}">
+    <input type="hidden" name="name" value="{{ name }}">
+    <input type="hidden" name="patronymic" value="{{ patronymic or '' }}">
+    <input type="hidden" name="gender" value="{{ gender }}">
+    <input type="hidden" name="birth_date" value="{{ birth_date or '' }}">
+    <input type="hidden" name="death_date" value="{{ death_date or '' }}">
+    <input type="hidden" name="city" value="{{ city or '' }}">
+    <input type="hidden" name="person_type" value="{{ person_type or '' }}">
+    <input type="hidden" name="parent_id" value="{{ parent_id or '' }}">
+    <input type="hidden" name="second_parent_id" value="{{ second_parent_id or '' }}">
+    <input type="hidden" name="marriage_date" value="{{ marriage_date or '' }}">
+    <input type="hidden" name="original_person_id" value="{{ original_person_id or '' }}">
+
+    <button type="submit" name="action" value="confirm" class="btn btn-primary">Добавить всё равно</button>
+    <button type="submit" name="action" value="cancel" class="btn btn-secondary">Отмена</button>
+</form>
+{% endblock %}

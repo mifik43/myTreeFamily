@@ -65,6 +65,10 @@
     {% endif %}
 
     <button class="btn btn-primary">Сохранить</button>
-    <a href="{{ url_for('tree_detail', tree_id=tree.id) if not edit else url_for('person_detail', tree_id=tree.id, person_id=person.id) }}" class="btn btn-secondary">Отмена</a>
+    {% if edit %}
+        <a href="{{ url_for('person_detail', person_id=person.id) }}" class="btn btn-secondary">Отмена</a>
+    {% else %}
+        <a href="{{ url_for('tree_detail') }}" class="btn btn-secondary">Отмена</a>
+    {% endif %}
 </form>
 {% endblock %}

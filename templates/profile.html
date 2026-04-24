@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Профиль</h1>
+<form method="POST">
+    <div class="mb-3">
+        <label>Email (для связи с другими исследователями)</label>
+        <input type="email" name="email" class="form-control" value="{{ user.email or '' }}" placeholder="example@mail.com">
+    </div>
+    <button class="btn btn-primary">Сохранить</button>
+</form>
+{% endblock %}

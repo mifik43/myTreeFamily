@@ -7,15 +7,45 @@
         <p><strong>Дата рождения:</strong> {{ person.birth_date.strftime('%d.%m.%Y') if person.birth_date else 'неизвестно' }}</p>
         <p><strong>Дата смерти:</strong> {{ person.death_date.strftime('%d.%m.%Y') if person.death_date else 'жив(а)' }}</p>
         <p><strong>Город:</strong> {{ person.city or '-' }}</p>
+
+        <!-- Родители -->
+        <p><strong>Родители:</strong></p>
         {% if parents %}
-        <p><strong>Родители:</strong>
+            <ul class="list-group list-group-flush mb-2">
             {% for parent in parents %}
-                <a href="{{ url_for('person_detail', tree_id=tree.id, person_id=parent.id) }}">{{ parent.full_name }}</a>{% if not loop.last %}, {% endif %}
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <a href="{{ url_for('person_detail', person_id=parent.id) }}">{{ parent.full_name }}</a>
+                    <form method="POST" action="{{ url_for('remove_parent', person_id=person.id, parent_id=parent.id) }}" onsubmit="return confirm('Открепить родителя {{ parent.full_name }}?')">
+                        <button class="btn btn-sm btn-outline-danger">✕</button>
+                    </form>
+                </li>
             {% endfor %}
+            </ul>
         {% else %}
             <p><em>Родители не указаны</em></p>
         {% endif %}
-        </p>
+        {% if parents|length < 2 %}
+            <a href="{{ url_for('add_parent', person_id=person.id) }}" class="btn btn-sm btn-outline-secondary mb-3">Добавить родителя</a>
+        {% endif %}
+
+        <!-- Приёмные родители -->
+        {% set step = person.step_parents %}
+        {% if step %}
+            <p><strong>Приёмные родители:</strong></p>
+            <ul class="list-group list-group-flush mb-2">
+            {% for sp in step %}
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <a href="{{ url_for('person_detail', person_id=sp.id) }}">{{ sp.full_name }}</a>
+                    <form method="POST" action="{{ url_for('remove_parent', person_id=person.id, parent_id=sp.id) }}" onsubmit="return confirm('Удалить приёмного родителя и его брак с биологическим родителем?')">
+                        <button class="btn btn-sm btn-outline-danger">✕</button>
+                    </form>
+                </li>
+            {% endfor %}
+            </ul>
+        {% endif %}
+        {% if person.father or person.mother %}
+            <a href="{{ url_for('add_step_parent', person_id=person.id) }}" class="btn btn-sm btn-outline-secondary mb-3">Добавить мачеху/отчима</a>
+        {% endif %}
     </div>
 </div>
 
@@ -24,40 +54,51 @@
 {% if spouses %}
     <ul>
     {% for sp in spouses %}
-        <li><a href="{{ url_for('person_detail', tree_id=tree.id, person_id=sp.id) }}">{{ sp.full_name }}</a></li>
+        <li><a href="{{ url_for('person_detail', person_id=sp.id) }}">{{ sp.full_name }}</a></li>
     {% endfor %}
     </ul>
 {% else %}
     <p>Нет записей о браке</p>
 {% endif %}
-<a href="{{ url_for('add_marriage', tree_id=tree.id) }}" class="btn btn-sm btn-outline-primary mb-3">Добавить брак</a>
+<a href="{{ url_for('add_spouse', person_id=person.id) }}" class="btn btn-sm btn-outline-primary mb-3">Добавить супруга(у)</a>
 
 <!-- Дети -->
 <h3>Дети</h3>
 {% if children %}
     <ul>
     {% for child in children %}
-        <li><a href="{{ url_for('person_detail', tree_id=tree.id, person_id=child.id) }}">{{ child.full_name }}</a></li>
+        <li><a href="{{ url_for('person_detail', person_id=child.id) }}">{{ child.full_name }}</a></li>
     {% endfor %}
     </ul>
 {% else %}
     <p>Нет детей</p>
 {% endif %}
+<a href="{{ url_for('add_child', person_id=person.id) }}" class="btn btn-sm btn-outline-success mb-3">Добавить ребёнка</a>
 
 <!-- Братья/сёстры -->
 <h3>Братья/сёстры</h3>
 {% if siblings %}
     <ul>
     {% for sib in siblings %}
-        <li><a href="{{ url_for('person_detail', tree_id=tree.id, person_id=sib.id) }}">{{ sib.full_name }}</a></li>
+        <li>
+            <a href="{{ url_for('person_detail', person_id=sib.id) }}">{{ sib.full_name }}</a>
+            {% if not (person.father or person.mother) %}
+                <form method="POST" action="{{ url_for('remove_sibling', person_id=person.id, sibling_id=sib.id) }}" style="display:inline" onsubmit="return confirm('Удалить явную связь с {{ sib.full_name }}?')">
+                    <button class="btn btn-sm btn-outline-danger" title="Удалить связь">✕</button>
+                </form>
+            {% endif %}
+        </li>
     {% endfor %}
     </ul>
 {% else %}
     <p>Нет известных братьев/сестёр</p>
 {% endif %}
+<a href="{{ url_for('add_sibling', person_id=person.id) }}" class="btn btn-sm btn-outline-secondary mb-3">
+    {% if person.father or person.mother %}Добавить брата/сестру{% else %}Добавить брата/сестру{% endif %}
+</a>
 
 <div class="mt-3">
-    <a href="{{ url_for('edit_person', tree_id=tree.id, person_id=person.id) }}" class="btn btn-warning">Редактировать</a>
-    <a href="{{ url_for('tree_detail', tree_id=tree.id) }}" class="btn btn-secondary">Назад к дереву</a>
+    <a href="{{ url_for('edit_person', person_id=person.id) }}" class="btn btn-warning">Редактировать</a>
+    <a href="{{ url_for('tree_detail') }}" class="btn btn-secondary">Назад к дереву</a>
 </div>
 {% endblock %}

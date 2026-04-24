@@ -2,15 +2,55 @@
 {% block content %}
 <h1>Регистрация</h1>
 <form method="POST">
-    <div class="mb-3">
-        <label>Имя пользователя</label>
-        <input type="text" name="username" class="form-control" required>
+    <div class="row">
+        <div class="col-md-6 mb-3">
+            <label>Логин *</label>
+            <input type="text" name="username" class="form-control" required>
+        </div>
+        <div class="col-md-6 mb-3">
+            <label>Пароль *</label>
+            <input type="password" name="password" class="form-control" required>
+        </div>
     </div>
-    <div class="mb-3">
-        <label>Пароль</label>
-        <input type="password" name="password" class="form-control" required>
+    <div class="row">
+        <div class="col-md-4 mb-3">
+            <label>Фамилия *</label>
+            <input type="text" name="surname" class="form-control" required>
+        </div>
+        <div class="col-md-4 mb-3">
+            <label>Имя *</label>
+            <input type="text" name="name" class="form-control" required>
+        </div>
+        <div class="col-md-4 mb-3">
+            <label>Отчество</label>
+            <input type="text" name="patronymic" class="form-control">
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-md-4 mb-3">
+            <label>Пол *</label>
+            <select name="gender" id="genderSelect" class="form-select" required>
+                <option value="M">Мужской</option>
+                <option value="F">Женский</option>
+            </select>
+        </div>
+        <div class="col-md-4 mb-3" id="maidenNameGroup" style="display: none;">
+            <label>Девичья фамилия</label>
+            <input type="text" name="maiden_name" class="form-control">
+        </div>
     </div>
     <button class="btn btn-success">Зарегистрироваться</button>
     <a href="{{ url_for('login') }}" class="btn btn-link">Уже есть аккаунт</a>
 </form>
+{% endblock %}
+{% block scripts %}
+<script>
+    const genderSelect = document.getElementById('genderSelect');
+    const maidenGroup = document.getElementById('maidenNameGroup');
+    function toggleMaiden() {
+        maidenGroup.style.display = genderSelect.value === 'F' ? 'block' : 'none';
+    }
+    genderSelect.addEventListener('change', toggleMaiden);
+    toggleMaiden();
+</script>
 {% endblock %}

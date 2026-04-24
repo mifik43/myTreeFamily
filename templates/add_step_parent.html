@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Добавить приёмного родителя для {{ person.full_name }}</h1>
+<p>Выберите биологического родителя, к которому добавляется супруг(а):</p>
+<form method="POST">
+    <div class="mb-3">
+        <select name="parent_id" class="form-select" required>
+            <option value="">-- выберите --</option>
+            {% for p in available_parents %}
+                <option value="{{ p.id }}">{{ p.full_name }} ({{ 'отец' if p.gender == 'M' else 'мать' }})</option>
+            {% endfor %}
+        </select>
+    </div>
+    <hr>
+    <h4>Данные нового супруга</h4>
+    <div class="row">
+        <div class="col-md-6 mb-3">
+            <label>Фамилия *</label>
+            <input type="text" name="surname" class="form-control" required>
+        </div>
+        <div class="col-md-6 mb-3">
+            <label>Имя *</label>
+            <input type="text" name="name" class="form-control" required>
+        </div>
+    </div>
+    <div class="mb-3">
+        <label>Отчество</label>
+        <input type="text" name="patronymic" class="form-control">
+    </div>
+    <div class="row">
+        <div class="col-md-6 mb-3">
+            <label>Дата рождения</label>
+            <input type="date" name="birth_date" class="form-control">
+        </div>
+        <div class="col-md-6 mb-3">
+            <label>Дата смерти</label>
+            <input type="date" name="death_date" class="form-control">
+        </div>
+    </div>
+    <div class="mb-3">
+        <label>Город</label>
+        <input type="text" name="city" class="form-control">
+    </div>
+    <div class="mb-3">
+        <label>Дата брака</label>
+        <input type="date" name="marriage_date" class="form-control">
+    </div>
+    <button class="btn btn-primary">Добавить</button>
+    <a href="{{ url_for('person_detail', person_id=person.id) }}" class="btn btn-secondary">Отмена</a>
+</form>
+{% endblock %}

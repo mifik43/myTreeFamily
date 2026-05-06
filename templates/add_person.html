@@ -17,15 +17,63 @@
         <input type="text" name="patronymic" class="form-control" value="{{ person.patronymic if edit and person.patronymic else '' }}">
     </div>
     <div class="row">
-        <div class="col-md-6 mb-3">
-            <label>Дата рождения</label>
-            <input type="date" name="birth_date" class="form-control" value="{{ person.birth_date.strftime('%Y-%m-%d') if edit and person.birth_date else '' }}">
-        </div>
-        <div class="col-md-6 mb-3">
-            <label>Дата смерти</label>
-            <input type="date" name="death_date" class="form-control" value="{{ person.death_date.strftime('%Y-%m-%d') if edit and person.death_date else '' }}">
+    <div class="col-md-12 mb-3">
+        <label>Дата рождения</label>
+        <div class="row g-1">
+            <div class="col-3">
+                <select name="birth_day" class="form-select">
+                    <option value="">День</option>
+                    {% for d in range(1,32) %}
+                        <option value="{{ d }}" {% if edit and person.birth_day == d %}selected{% endif %}>{{ d }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-3">
+                <select name="birth_month" class="form-select">
+                    <option value="">Месяц</option>
+                    {% for m in range(1,13) %}
+                        <option value="{{ m }}" {% if edit and person.birth_month == m %}selected{% endif %}>{{ m }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-3">
+                <input type="number" name="birth_year" class="form-control" placeholder="Год" value="{{ person.birth_year if edit else '' }}">
+            </div>
+            <div class="col-3">
+                <input type="text" name="birth_notes" class="form-control" placeholder="Описание" value="{{ person.birth_notes if edit else '' }}">
+            </div>
         </div>
     </div>
+</div>
+<div class="row">
+    <div class="col-md-12 mb-3">
+        <label>Дата смерти</label>
+        <div class="row g-1">
+            <div class="col-3">
+                <select name="death_day" class="form-select">
+                    <option value="">День</option>
+                    {% for d in range(1,32) %}
+                        <option value="{{ d }}" {% if edit and person.death_day == d %}selected{% endif %}>{{ d }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-3">
+                <select name="death_month" class="form-select">
+                    <option value="">Месяц</option>
+                    {% for m in range(1,13) %}
+                        <option value="{{ m }}" {% if edit and person.death_month == m %}selected{% endif %}>{{ m }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-3">
+                <input type="number" name="death_year" class="form-control" placeholder="Год" value="{{ person.death_year if edit else '' }}">
+            </div>
+            <div class="col-3">
+                <input type="text" name="death_notes" class="form-control" placeholder="Описание" value="{{ person.death_notes if edit else '' }}">
+            </div>
+        </div>
+    </div>
+</div>
     <div class="row">
         <div class="col-md-6 mb-3">
             <label>Город</label>
@@ -40,35 +88,43 @@
         </div>
     </div>
 
-    {% if edit and all_persons %}
+    {% if edit %}
     <h4>Родители</h4>
-    <div class="row">
-        <div class="col-md-6 mb-3">
-            <label>Отец</label>
-            <select name="father_id" class="form-select">
-                <option value="">-- не выбран --</option>
-                {% for p in all_persons if p.gender == 'M' and p.id != person.id %}
-                    <option value="{{ p.id }}" {% if person.father_id == p.id %}selected{% endif %}>{{ p.full_name }}</option>
-                {% endfor %}
-            </select>
+    <div class="row mb-3">
+        <div class="col-md-6">
+            <p><strong>Отец:</strong>
+            {% if person.father %}
+                <a href="{{ url_for('person.person_detail', person_id=person.father.id) }}">{{ person.father.full_name }}</a>
+                <form method="POST" action="{{ url_for('relationships.remove_parent', person_id=person.id, parent_id=person.father.id) }}" style="display:inline;" onsubmit="return confirm('Удалить отца?');">
+                    <button class="btn btn-sm btn-outline-danger" title="Удалить отца">✕</button>
+                </form>
+            {% else %}
+                <span class="text-muted">не указан</span>
+                <a href="{{ url_for('relationships.add_parent', person_id=person.id, gender='M') }}" class="btn btn-sm btn-outline-secondary ms-2">Добавить отца</a>
+            {% endif %}
+            </p>
         </div>
-        <div class="col-md-6 mb-3">
-            <label>Мать</label>
-            <select name="mother_id" class="form-select">
-                <option value="">-- не выбрана --</option>
-                {% for p in all_persons if p.gender == 'F' and p.id != person.id %}
-                    <option value="{{ p.id }}" {% if person.mother_id == p.id %}selected{% endif %}>{{ p.full_name }}</option>
-                {% endfor %}
-            </select>
+        <div class="col-md-6">
+            <p><strong>Мать:</strong>
+            {% if person.mother %}
+                <a href="{{ url_for('person.person_detail', person_id=person.mother.id) }}">{{ person.mother.full_name }}</a>
+                <form method="POST" action="{{ url_for('relationships.remove_parent', person_id=person.id, parent_id=person.mother.id) }}" style="display:inline;" onsubmit="return confirm('Удалить мать?');">
+                    <button class="btn btn-sm btn-outline-danger" title="Удалить мать">✕</button>
+                </form>
+            {% else %}
+                <span class="text-muted">не указана</span>
+                <a href="{{ url_for('relationships.add_parent', person_id=person.id, gender='F') }}" class="btn btn-sm btn-outline-secondary ms-2">Добавить мать</a>
+            {% endif %}
+            </p>
         </div>
     </div>
-    {% endif %}
+{% endif %}
 
     <button class="btn btn-primary">Сохранить</button>
     {% if edit %}
-        <a href="{{ url_for('person_detail', person_id=person.id) }}" class="btn btn-secondary">Отмена</a>
+        <a href="{{ url_for('person.person_detail', person_id=person.id) }}" class="btn btn-secondary">Отмена</a>
     {% else %}
-        <a href="{{ url_for('tree_detail') }}" class="btn btn-secondary">Отмена</a>
+        <a href="{{ url_for('main.tree_detail') }}" class="btn btn-secondary">Отмена</a>
     {% endif %}
 </form>
 {% endblock %}

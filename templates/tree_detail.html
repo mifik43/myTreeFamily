@@ -1,14 +1,39 @@
 {% extends "base.html" %}
 {% block content %}
 <h1>{{ tree.name }}</h1>
-<div class="mb-3 btn-group" role="group">
-    <a href="{{ url_for('tree_detail', view='table') }}" class="btn btn-outline-secondary {% if view=='table' %}active{% endif %}">Таблица</a>
-    <a href="{{ url_for('tree_detail', view='list') }}" class="btn btn-outline-secondary {% if view=='list' %}active{% endif %}">Список</a>
-    <a href="{{ url_for('tree_detail', view='tree') }}" class="btn btn-outline-secondary {% if view=='tree' %}active{% endif %}">Граф</a>
+
+<!-- Фильтр по фамилии -->
+<div class="row mb-3">
+    <div class="col-auto">
+        <label class="form-label">Фильтр по фамилии:</label>
+    </div>
+    <div class="col-auto">
+        <form method="GET" action="{{ url_for('main.tree_detail') }}" class="row g-2 align-items-center">
+            <input type="hidden" name="view" value="{{ view }}">
+            <div class="col-auto">
+                <select name="surname" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="Все" {% if current_surname == 'Все' or not current_surname %}selected{% endif %}>Все</option>
+                    {% for s in surnames %}
+                        <option value="{{ s }}" {% if current_surname == s %}selected{% endif %}>{{ s }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <noscript><div class="col-auto"><button type="submit" class="btn btn-sm btn-primary">Применить</button></div></noscript>
+        </form>
+    </div>
 </div>
+
+<!-- Переключатели вида -->
+<div class="mb-3 btn-group" role="group">
+    <a href="{{ url_for('main.tree_detail', view='table', surname=current_surname) }}" class="btn btn-outline-secondary {% if view=='table' %}active{% endif %}">Таблица</a>
+    <a href="{{ url_for('main.tree_detail', view='list', surname=current_surname) }}" class="btn btn-outline-secondary {% if view=='list' %}active{% endif %}">Список</a>
+    <a href="{{ url_for('main.tree_detail', view='tree', surname=current_surname) }}" class="btn btn-outline-secondary {% if view=='tree' %}active{% endif %}">Граф</a>
+</div>
+
+<!-- Кнопки добавления -->
 <div class="mb-3">
-    <a href="{{ url_for('add_person') }}" class="btn btn-success">Добавить персону</a>
-    <a href="{{ url_for('add_marriage') }}" class="btn btn-outline-primary">Добавить брак</a>
+    <a href="{{ url_for('person.add_person') }}" class="btn btn-success">Добавить персону</a>
+    <a href="{{ url_for('relationships.add_marriage') }}" class="btn btn-outline-primary">Добавить брак</a>
 </div>
 
 {% if view == 'table' %}
@@ -16,7 +41,8 @@
     <table class="table table-striped">
         <thead>
             <tr>
-                <th>ФИО</th>
+                <th>Фамилия</th>       <!-- новый столбец -->
+                <th>Имя и Отчество</th>
                 <th>Дата рождения</th>
                 <th>Город</th>
                 <th></th>
@@ -25,12 +51,17 @@
         <tbody>
         {% for p in persons %}
             <tr>
-                <td><a href="{{ url_for('person_detail', person_id=p.id) }}">{{ p.full_name }}</a></td>
-                <td>{{ p.birth_date.strftime('%d.%m.%Y') if p.birth_date else '-' }}</td>
+                <td>{{ p.surname }}</td>
+                <td>
+                    <a href="{{ url_for('person.person_detail', person_id=p.id) }}">
+                        {{ p.name }} {{ p.patronymic or '' }}
+                    </a>
+                </td>
+                <td>{{ p.birth_display }}</td>
                 <td>{{ p.city or '-' }}</td>
                 <td>
-                    <a href="{{ url_for('edit_person', person_id=p.id) }}" class="btn btn-sm btn-warning">Изм.</a>
-                    <form method="POST" action="{{ url_for('delete_person', person_id=p.id) }}" style="display:inline" onsubmit="return confirm('Удалить персону и все её связи?')">
+                    <a href="{{ url_for('person.edit_person', person_id=p.id) }}" class="btn btn-sm btn-warning">Изм.</a>
+                    <form method="POST" action="{{ url_for('person.delete_person', person_id=p.id) }}" style="display:inline" onsubmit="return confirm('Удалить персону и все её связи?')">
                         <button class="btn btn-sm btn-danger">Уд.</button>
                     </form>
                 </td>
@@ -42,15 +73,16 @@
         <p>Ваше дерево пусто. Добавьте родственников, начиная с себя.</p>
     {% endif %}
 
+
 {% elif view == 'list' %}
     {% if root_persons %}
         <div class="tree-list">
         {% macro render_person(person, level=0) %}
             <div style="margin-left: {{ level * 30 }}px; border-left: 2px solid #ccc; padding-left: 10px; margin-bottom: 5px;">
                 <strong>
-                    <a href="{{ url_for('person_detail', person_id=person.id) }}">{{ person.full_name }}</a>
+                    <a href="{{ url_for('person.person_detail', person_id=person.id) }}">{{ person.full_name }}</a>
                 </strong>
-                <small>{{ person.birth_date.strftime('%d.%m.%Y') if person.birth_date else '' }}</small>
+                <small>{{ person.birth_display }}</small>
                 {% set children = person.children_father + person.children_mother %}
                 {% if children %}
                     {% for child in children|unique %}
@@ -78,9 +110,18 @@
             <button type="button" class="btn btn-sm btn-outline-success" id="btn-parents">Только родители</button>
             <button type="button" class="btn btn-sm btn-outline-success" id="btn-marriages">Только браки</button>
         </div>
+        <div class="btn-group ms-2" role="group">
+            <select id="graph-surname-filter" class="form-select form-select-sm" style="width: auto;">
+                <option value="Все" selected>Все фамилии</option>
+                {% for s in surnames %}
+                    <option value="{{ s }}">{{ s }}</option>
+                {% endfor %}
+            </select>
+        </div>
     </div>
     <div id="mynetwork" style="width: 100%; height: 650px; border: 1px solid #ddd; border-radius: 8px;"></div>
 {% endif %}
+
 {% endblock %}
 
 {% block scripts %}
@@ -89,6 +130,7 @@
 <script>
     var nodes = new vis.DataSet({{ nodes|tojson }});
     var edges = new vis.DataSet({{ edges|tojson }});
+
     var container = document.getElementById('mynetwork');
     var data = { nodes: nodes, edges: edges };
     var options = {
@@ -171,6 +213,25 @@
         group.forEach(function(id) { document.getElementById(id).classList.remove('active'); });
         activeBtn.classList.add('active');
     }
+
+    // Фильтр по фамилии в графе
+    var surnameFilter = document.getElementById('graph-surname-filter');
+    surnameFilter.addEventListener('change', function() {
+        var selectedSurname = this.value;
+        nodes.forEach(function(node) {
+            if (selectedSurname === 'Все' || node.surname === selectedSurname) {
+                nodes.update({ id: node.id, hidden: false });
+            } else {
+                nodes.update({ id: node.id, hidden: true });
+            }
+        });
+        edges.forEach(function(edge) {
+            var fromNode = nodes.get(edge.from);
+            var toNode = nodes.get(edge.to);
+            var hidden = (fromNode && fromNode.hidden) || (toNode && toNode.hidden);
+            edges.update({ id: edge.id, hidden: hidden });
+        });
+    });
 
     updateLabels(false);
 </script>

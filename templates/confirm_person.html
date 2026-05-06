@@ -1,16 +1,22 @@
 {% extends "base.html" %}
 {% block content %}
 <h1>Найдены возможные дубликаты</h1>
-<p>Создаваемая персона: <strong>{{ surname }} {{ name }} {{ patronymic }}</strong>, дата рождения: {{ birth_date }}</p>
+<p>Создаваемая персона: <strong>{{ surname }} {{ name }} {{ patronymic }}</strong>,
+   год рождения: {{ birth_year if birth_year else 'не указан' }}</p>
 
 {% if duplicates.own %}
     <h3>В вашем дереве</h3>
     <ul>
     {% for dup in duplicates.own %}
-        <li>{{ dup.full_name }} ({{ dup.birth_date.strftime('%d.%m.%Y') if dup.birth_date else '?' }}) – дерево «{{ dup.tree.name }}»</li>
+        <li>
+            {{ dup.full_name }}
+            ({{ dup.birth_display }}) –
+            <button type="button" class="btn btn-sm btn-outline-success"
+                    onclick="useExisting('{{ dup.id }}')">Использовать этого человека</button>
+        </li>
     {% endfor %}
     </ul>
-    <p>Возможно, вы уже добавляли этого человека.</p>
+    <p>Вы можете выбрать существующую персону, чтобы не создавать дубликат, либо добавить нового.</p>
 {% endif %}
 
 {% if duplicates.others %}
@@ -18,7 +24,7 @@
     <ul>
     {% for dup, username, email in duplicates.others %}
         <li>
-            {{ dup.full_name }} ({{ dup.birth_date.strftime('%d.%m.%Y') if dup.birth_date else '?' }}) –
+            {{ dup.full_name }} ({{ dup.birth_display }}) –
             владелец: <strong>{{ username }}</strong>
             {% if email %}
                 (<a href="mailto:{{ email }}">{{ email }}</a>)
@@ -28,28 +34,41 @@
         </li>
     {% endfor %}
     </ul>
-    <p>Это могут быть записи об одном и том же человеке. Вы можете связаться с владельцем, чтобы обменяться данными.</p>
+    <p>Это могут быть записи об одном и том же человеке. Вы можете связаться с владельцем.</p>
 {% endif %}
 
 <hr>
-<p>Вы всё равно можете добавить эту персону (пропустить проверку).</p>
-
-<form method="POST" action="{{ url_for('confirm_person') }}">
-    <!-- Скрытые поля с исходными данными -->
+<form method="POST" action="{{ url_for('confirm.confirm_person') }}" id="mainForm">
     <input type="hidden" name="surname" value="{{ surname }}">
     <input type="hidden" name="name" value="{{ name }}">
     <input type="hidden" name="patronymic" value="{{ patronymic or '' }}">
     <input type="hidden" name="gender" value="{{ gender }}">
-    <input type="hidden" name="birth_date" value="{{ birth_date or '' }}">
-    <input type="hidden" name="death_date" value="{{ death_date or '' }}">
+    <input type="hidden" name="birth_year" value="{{ birth_year or '' }}">
+    <input type="hidden" name="birth_month" value="{{ birth_month or '' }}">
+    <input type="hidden" name="birth_day" value="{{ birth_day or '' }}">
+    <input type="hidden" name="birth_notes" value="{{ birth_notes or '' }}">
+    <input type="hidden" name="death_year" value="{{ death_year or '' }}">
+    <input type="hidden" name="death_month" value="{{ death_month or '' }}">
+    <input type="hidden" name="death_day" value="{{ death_day or '' }}">
+    <input type="hidden" name="death_notes" value="{{ death_notes or '' }}">
     <input type="hidden" name="city" value="{{ city or '' }}">
     <input type="hidden" name="person_type" value="{{ person_type or '' }}">
     <input type="hidden" name="parent_id" value="{{ parent_id or '' }}">
     <input type="hidden" name="second_parent_id" value="{{ second_parent_id or '' }}">
     <input type="hidden" name="marriage_date" value="{{ marriage_date or '' }}">
     <input type="hidden" name="original_person_id" value="{{ original_person_id or '' }}">
+    <input type="hidden" name="existing_person_id" id="existingPersonId" value="">
+    <input type="hidden" name="action" id="formAction" value="">
 
-    <button type="submit" name="action" value="confirm" class="btn btn-primary">Добавить всё равно</button>
-    <button type="submit" name="action" value="cancel" class="btn btn-secondary">Отмена</button>
+    <button type="submit" class="btn btn-primary" onclick="document.getElementById('formAction').value='confirm'">Добавить всё равно</button>
+    <button type="submit" class="btn btn-secondary" onclick="document.getElementById('formAction').value='cancel'">Отмена</button>
 </form>
+
+<script>
+    function useExisting(personId) {
+        document.getElementById('existingPersonId').value = personId;
+        document.getElementById('formAction').value = 'use_existing';
+        document.getElementById('mainForm').submit();
+    }
+</script>
 {% endblock %}

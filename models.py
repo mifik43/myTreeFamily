@@ -30,17 +30,27 @@ class Tree(db.Model):
 class Person(db.Model):
     __tablename__ = 'person'
     __table_args__ = (
-        db.Index('ix_person_duplicate_check', 'surname', 'name', 'patronymic', 'birth_date'),
+        db.Index('ix_person_duplicate_check', 'surname', 'name', 'patronymic', 'birth_year'),
     )
     id = db.Column(db.Integer, primary_key=True)
     tree_id = db.Column(db.Integer, db.ForeignKey('tree.id'), nullable=False)
     surname = db.Column(db.String(100), nullable=False)
     name = db.Column(db.String(100), nullable=False)
     patronymic = db.Column(db.String(100))
-    birth_date = db.Column(db.Date)
-    death_date = db.Column(db.Date, nullable=True)
-    city = db.Column(db.String(200))
     gender = db.Column(db.String(1), nullable=False)
+
+    birth_year = db.Column(db.Integer, nullable=True)
+    birth_month = db.Column(db.Integer, nullable=True)
+    birth_day = db.Column(db.Integer, nullable=True)
+    birth_notes = db.Column(db.String(200), nullable=True)
+
+    death_year = db.Column(db.Integer, nullable=True)
+    death_month = db.Column(db.Integer, nullable=True)
+    death_day = db.Column(db.Integer, nullable=True)
+    death_notes = db.Column(db.String(200), nullable=True)
+
+    city = db.Column(db.String(200))
+
     father_id = db.Column(db.Integer, db.ForeignKey('person.id'), nullable=True)
     mother_id = db.Column(db.Integer, db.ForeignKey('person.id'), nullable=True)
 
@@ -48,8 +58,6 @@ class Person(db.Model):
     mother = db.relationship('Person', remote_side=[id], foreign_keys=[mother_id], backref='children_mother')
     marriages_as_husband = db.relationship('Marriage', foreign_keys='Marriage.husband_id', backref='husband', lazy=True)
     marriages_as_wife = db.relationship('Marriage', foreign_keys='Marriage.wife_id', backref='wife', lazy=True)
-
-    # Явные связи "брат/сестра"
     sibling_links_1 = db.relationship('SiblingLink', foreign_keys='SiblingLink.person1_id', backref='person1', lazy=True)
     sibling_links_2 = db.relationship('SiblingLink', foreign_keys='SiblingLink.person2_id', backref='person2', lazy=True)
 
@@ -57,6 +65,50 @@ class Person(db.Model):
     def full_name(self):
         parts = [self.surname, self.name, self.patronymic]
         return ' '.join(filter(None, parts))
+
+    @property
+    def birth_display(self):
+        if self.birth_notes:
+            return self.birth_notes
+        parts = []
+        if self.birth_day:
+            parts.append(str(self.birth_day))
+        if self.birth_month:
+            parts.append(str(self.birth_month))
+        if self.birth_year:
+            parts.append(str(self.birth_year))
+        return '.'.join(parts) if parts else 'неизвестно'
+
+    @property
+    def death_display(self):
+        if self.death_notes:
+            return self.death_notes
+        parts = []
+        if self.death_day:
+            parts.append(str(self.death_day))
+        if self.death_month:
+            parts.append(str(self.death_month))
+        if self.death_year:
+            parts.append(str(self.death_year))
+        return '.'.join(parts) if parts else 'жив(а)'
+
+    @property
+    def birth_date_obj(self):
+        if self.birth_year and self.birth_month and self.birth_day:
+            try:
+                return date(self.birth_year, self.birth_month, self.birth_day)
+            except ValueError:
+                return None
+        return None
+
+    @property
+    def death_date_obj(self):
+        if self.death_year and self.death_month and self.death_day:
+            try:
+                return date(self.death_year, self.death_month, self.death_day)
+            except ValueError:
+                return None
+        return None
 
     @property
     def spouses(self):
@@ -82,14 +134,12 @@ class Person(db.Model):
 
     @property
     def siblings(self):
-        """Все братья и сёстры: через родителей, сводные и явно добавленные."""
         sibs = set()
         if self.father:
             sibs.update(self.father.children_father)
         if self.mother:
             sibs.update(self.mother.children_mother)
         sibs.discard(self)
-        # Сводные
         for sp in self.step_parents:
             if sp.gender == 'M':
                 for child in sp.children_father:
@@ -99,7 +149,6 @@ class Person(db.Model):
                 for child in sp.children_mother:
                     if child != self:
                         sibs.add(child)
-        # Явные связи (SiblingLink)
         for link in self.sibling_links_1:
             if link.person2_id != self.id:
                 sibs.add(link.person2)
@@ -116,16 +165,12 @@ class Marriage(db.Model):
     divorce_date = db.Column(db.Date, nullable=True)
 
 class SiblingLink(db.Model):
-    """Явная связь между братьями/сёстрами (без родителей)."""
     __tablename__ = 'sibling_link'
     id = db.Column(db.Integer, primary_key=True)
     person1_id = db.Column(db.Integer, db.ForeignKey('person.id'), nullable=False)
     person2_id = db.Column(db.Integer, db.ForeignKey('person.id'), nullable=False)
-    # Дополнительная информация (например, "предполагаемый брат")
     relation_type = db.Column(db.String(50), default='sibling')
     tree_id = db.Column(db.Integer, db.ForeignKey('tree.id'), nullable=False)
-
-    # Уникальность пары (person1_id < person2_id обеспечим в коде)
     __table_args__ = (
         db.UniqueConstraint('person1_id', 'person2_id', name='unique_sibling_pair'),
     )

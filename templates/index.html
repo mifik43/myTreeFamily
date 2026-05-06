@@ -13,7 +13,7 @@
 {% if trees %}
     <div class="list-group">
     {% for tree in trees %}
-        <a href="{{ url_for('tree_detail', tree_id=tree.id) }}" class="list-group-item list-group-item-action">
+        <a href="{{ url_for('main.tree_detail', tree_id=tree.id) }}" class="list-group-item list-group-item-action">
             {{ tree.name }} <span class="badge bg-secondary">{{ tree.persons|length }} чел.</span>
         </a>
     {% endfor %}

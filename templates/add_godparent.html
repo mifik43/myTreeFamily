@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Добавить крёстного/крёстную для {{ person.full_name }}</h1>
+<form method="POST">
+    <div class="row">
+        <div class="col-md-6 mb-3">
+            <label>Фамилия *</label>
+            <input type="text" name="surname" class="form-control" value="{{ person.surname }}" required>
+        </div>
+        <div class="col-md-6 mb-3">
+            <label>Имя *</label>
+            <input type="text" name="name" class="form-control" required>
+        </div>
+    </div>
+    <div class="mb-3">
+        <label>Отчество</label>
+        <input type="text" name="patronymic" class="form-control">
+    </div>
+    <div class="row">
+        <div class="col-md-6 mb-3">
+            <label>Дата рождения</label>
+            <input type="text" name="birth_date_input" class="form-control" placeholder="дд.мм.гггг или год">
+        </div>
+        <div class="col-md-6 mb-3">
+            <label>Примечание к рождению</label>
+            <input type="text" name="birth_notes" class="form-control">
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-md-6 mb-3">
+            <label>Дата смерти</label>
+            <input type="text" name="death_date_input" class="form-control" placeholder="дд.мм.гггг или год">
+        </div>
+        <div class="col-md-6 mb-3">
+            <label>Примечание к смерти</label>
+            <input type="text" name="death_notes" class="form-control">
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-md-6 mb-3">
+            <label>Город рождения</label>
+            <input type="text" name="birth_city" class="form-control">
+        </div>
+        <div class="col-md-6 mb-3">
+            <label>Дополнительная информация</label>
+            <input type="text" name="extra_info" class="form-control">
+        </div>
+    </div>
+    <div class="mb-3">
+        <label>Пол *</label>
+        <div>
+            <div class="form-check form-check-inline">
+                <input class="form-check-input" type="radio" name="gender" id="genderM" value="M" checked>
+                <label class="form-check-label" for="genderM">Мужской</label>
+            </div>
+            <div class="form-check form-check-inline">
+                <input class="form-check-input" type="radio" name="gender" id="genderF" value="F">
+                <label class="form-check-label" for="genderF">Женский</label>
+            </div>
+        </div>
+    </div>
+    <button type="submit" class="btn btn-primary">Добавить</button>
+    <a href="{{ url_for('person.person_detail', person_id=person.id) }}" class="btn btn-secondary">Отмена</a>
+</form>
+{% endblock %}

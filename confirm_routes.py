@@ -11,16 +11,14 @@ def confirm_person():
     tree = current_user.tree
     action = request.form.get('action')
 
-    # Отмена или пропуск – возвращаемся обратно
+    # Отмена или пропуск
     if action in ('cancel', 'skip'):
         flash('Добавление отменено', 'info')
-        # Редиректим на дерево или на карточку персоны, если был parent_id
         parent_id = request.form.get('parent_id')
         if parent_id:
             return redirect(url_for('person.person_detail', person_id=int(parent_id)))
         return redirect(url_for('main.tree_detail'))
 
-    # Данные новой персоны (из скрытых полей)
     surname = request.form.get('surname', '').strip()
     name = request.form.get('name', '').strip()
     if not surname or not name:
@@ -37,15 +35,17 @@ def confirm_person():
     d_month = request.form.get('death_month', type=int)
     d_day = request.form.get('death_day', type=int)
     d_notes = request.form.get('death_notes', '').strip() or None
-    city = request.form.get('city', '').strip()
+    birth_city = request.form.get('birth_city', '').strip()
+    extra_info = request.form.get('extra_info', '').strip()
+    maiden_name = request.form.get('maiden_name', '').strip() or None
 
     person_type = request.form.get('person_type')
-    parent_id = request.form.get('parent_id')       # контекст: для кого добавляем (ребёнка, супруга и т.д.)
+    parent_id = request.form.get('parent_id')
     second_parent_id = request.form.get('second_parent_id')
     marriage_date_str = request.form.get('marriage_date')
     original_person_id = request.form.get('original_person_id')
 
-    # Если выбрали "использовать существующего" (только для своего дерева)
+    # Использовать существующего
     if action == 'use_existing':
         existing_person_id = request.form.get('existing_person_id', type=int)
         if not existing_person_id:
@@ -56,15 +56,16 @@ def confirm_person():
             flash('Персона не найдена или не принадлежит вашему дереву', 'danger')
             return redirect(url_for('main.tree_detail'))
 
-        # Создаём связь в зависимости от типа
         if person_type == 'spouse' and parent_id:
             current_person = Person.query.get(int(parent_id))
             if current_person and current_person.tree_id == tree.id:
                 marriage_date = datetime.strptime(marriage_date_str, '%Y-%m-%d').date() if marriage_date_str else None
                 if current_person.gender == 'M':
-                    marriage = Marriage(husband_id=current_person.id, wife_id=existing_person.id, marriage_date=marriage_date)
+                    marriage = Marriage(husband_id=current_person.id, wife_id=existing_person.id,
+                                        marriage_date=marriage_date)
                 else:
-                    marriage = Marriage(husband_id=existing_person.id, wife_id=current_person.id, marriage_date=marriage_date)
+                    marriage = Marriage(husband_id=existing_person.id, wife_id=current_person.id,
+                                        marriage_date=marriage_date)
                 db.session.add(marriage)
                 db.session.commit()
                 flash('Брак добавлен с существующей персоной', 'success')
@@ -119,21 +120,35 @@ def confirm_person():
                 flash('Брат/сестра добавлен(а) из существующей персоны', 'success')
                 return redirect(url_for('person.person_detail', person_id=original.id))
 
+        elif person_type == 'godparent' and parent_id:
+            original = Person.query.get(int(parent_id))
+            if original and original.tree_id == tree.id:
+                pid1, pid2 = sorted([original.id, existing_person.id])
+                if not SiblingLink.query.filter_by(person1_id=pid1, person2_id=pid2,
+                                                   relation_type='godparent').first():
+                    link = SiblingLink(person1_id=pid1, person2_id=pid2, tree_id=tree.id,
+                                       relation_type='godparent')
+                    db.session.add(link)
+                    db.session.commit()
+                flash('Крёстный/крёстная добавлен(а) из существующей персоны', 'success')
+                return redirect(url_for('person.person_detail', person_id=original.id))
+
         elif person_type == 'step_parent' and parent_id:
             parent = Person.query.get(int(parent_id))
             if parent and parent.tree_id == tree.id:
                 marriage_date = datetime.strptime(marriage_date_str, '%Y-%m-%d').date() if marriage_date_str else None
                 if parent.gender == 'M':
-                    marriage = Marriage(husband_id=parent.id, wife_id=existing_person.id, marriage_date=marriage_date)
+                    marriage = Marriage(husband_id=parent.id, wife_id=existing_person.id,
+                                        marriage_date=marriage_date)
                 else:
-                    marriage = Marriage(husband_id=existing_person.id, wife_id=parent.id, marriage_date=marriage_date)
+                    marriage = Marriage(husband_id=existing_person.id, wife_id=parent.id,
+                                        marriage_date=marriage_date)
                 db.session.add(marriage)
                 db.session.commit()
                 flash('Приёмный родитель добавлен через брак с существующей персоной', 'success')
                 return redirect(url_for('person.person_detail', person_id=original_person_id if original_person_id else parent.id))
 
         else:
-            # Если тип неизвестен, просто редиректим на карточку существующей персоны
             flash('Тип связи не поддерживается для существующей персоны', 'warning')
             return redirect(url_for('person.person_detail', person_id=existing_person.id))
 
@@ -146,7 +161,7 @@ def confirm_person():
             surname=surname, name=name, patronymic=patronymic, gender=gender,
             birth_year=b_year, birth_month=b_month, birth_day=b_day, birth_notes=b_notes,
             death_year=d_year, death_month=d_month, death_day=d_day, death_notes=d_notes,
-            city=city
+            birth_city=birth_city, extra_info=extra_info, maiden_name=maiden_name
         )
         db.session.add(person)
         db.session.flush()
@@ -171,9 +186,11 @@ def confirm_person():
             current_person = Person.query.get(int(parent_id))
             if current_person and current_person.tree_id == tree.id:
                 if current_person.gender == 'M':
-                    marriage = Marriage(husband_id=current_person.id, wife_id=person.id, marriage_date=marriage_date)
+                    marriage = Marriage(husband_id=current_person.id, wife_id=person.id,
+                                        marriage_date=marriage_date)
                 else:
-                    marriage = Marriage(husband_id=person.id, wife_id=current_person.id, marriage_date=marriage_date)
+                    marriage = Marriage(husband_id=person.id, wife_id=current_person.id,
+                                        marriage_date=marriage_date)
                 db.session.add(marriage)
 
         elif person_type == 'parent' and parent_id:
@@ -198,13 +215,23 @@ def confirm_person():
                     link = SiblingLink(person1_id=pid1, person2_id=pid2, tree_id=tree.id)
                     db.session.add(link)
 
+        elif person_type == 'godparent' and parent_id:
+            original = Person.query.get(int(parent_id))
+            if original and original.tree_id == tree.id:
+                pid1, pid2 = sorted([original.id, person.id])
+                link = SiblingLink(person1_id=pid1, person2_id=pid2, tree_id=tree.id,
+                                   relation_type='godparent')
+                db.session.add(link)
+
         elif person_type == 'step_parent' and parent_id:
             parent = Person.query.get(int(parent_id))
             if parent and parent.tree_id == tree.id:
                 if parent.gender == 'M':
-                    marriage = Marriage(husband_id=parent.id, wife_id=person.id, marriage_date=marriage_date)
+                    marriage = Marriage(husband_id=parent.id, wife_id=person.id,
+                                        marriage_date=marriage_date)
                 else:
-                    marriage = Marriage(husband_id=person.id, wife_id=parent.id, marriage_date=marriage_date)
+                    marriage = Marriage(husband_id=person.id, wife_id=parent.id,
+                                        marriage_date=marriage_date)
                 db.session.add(marriage)
 
         db.session.commit()

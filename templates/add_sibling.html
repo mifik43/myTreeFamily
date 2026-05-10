@@ -22,6 +22,26 @@
         <label>Отчество</label>
         <input type="text" name="patronymic" class="form-control">
     </div>
+    <div class="mb-3">
+    <label>Девичья фамилия</label>
+    <input type="text" name="maiden_name" class="form-control" value="{{ person.maiden_name if edit else '' }}" placeholder="Только для женщин">
+    <small class="text-muted">Если у женщины менялась фамилия — укажите девичью</small>
+</div>
+    <div class="mb-3">
+    <label>Пол *</label>
+    <div>
+        <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="gender" id="genderM" value="M"
+                   {% if (edit and person.gender == 'M') or not edit %}checked{% endif %}>
+            <label class="form-check-label" for="genderM">Мужской</label>
+        </div>
+        <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="gender" id="genderF" value="F"
+                   {% if edit and person.gender == 'F' %}checked{% endif %}>
+            <label class="form-check-label" for="genderF">Женский</label>
+        </div>
+    </div>
+</div>
     <div class="row">
     <div class="col-md-12 mb-3">
         <label>Дата рождения</label>

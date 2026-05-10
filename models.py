@@ -37,6 +37,7 @@ class Person(db.Model):
     surname = db.Column(db.String(100), nullable=False)
     name = db.Column(db.String(100), nullable=False)
     patronymic = db.Column(db.String(100))
+    maiden_name = db.Column(db.String(100), nullable=True)
     gender = db.Column(db.String(1), nullable=False)
 
     birth_year = db.Column(db.Integer, nullable=True)
@@ -49,7 +50,13 @@ class Person(db.Model):
     death_day = db.Column(db.Integer, nullable=True)
     death_notes = db.Column(db.String(200), nullable=True)
 
-    city = db.Column(db.String(200))
+    birth_city = db.Column(db.String(200), nullable=True)
+    extra_info = db.Column(db.Text, nullable=True)
+    photo = db.Column(db.String(300), nullable=True)
+    social_ok = db.Column(db.String(200), nullable=True)
+    social_vk = db.Column(db.String(200), nullable=True)
+    social_telegram = db.Column(db.String(200), nullable=True)
+    social_mail = db.Column(db.String(200), nullable=True)
 
     father_id = db.Column(db.Integer, db.ForeignKey('person.id'), nullable=True)
     mother_id = db.Column(db.Integer, db.ForeignKey('person.id'), nullable=True)

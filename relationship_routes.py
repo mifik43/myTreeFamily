@@ -318,6 +318,69 @@ def add_sibling(person_id):
 
     return render_template('add_sibling.html', tree=tree, person=person)
 
+@rel_bp.route('/person/<int:person_id>/add_godparent', methods=['GET', 'POST'])
+@login_required
+def add_godparent(person_id):
+    tree = current_user.tree
+    person = Person.query.get_or_404(person_id)
+    if person.tree_id != tree.id:
+        abort(403)
+
+    if request.method == 'POST':
+        surname = request.form.get('surname', '').strip()
+        name = request.form.get('name', '').strip()
+        if not surname or not name:
+            flash('Фамилия и Имя обязательны', 'danger')
+            return render_template('add_godparent.html', tree=tree, person=person)
+        patronymic = request.form.get('patronymic', '').strip() or None
+        gender = request.form.get('gender')
+        if gender not in ('M', 'F'):
+            flash('Некорректный пол', 'danger')
+            return render_template('add_godparent.html', tree=tree, person=person)
+        b_year = request.form.get('birth_year', type=int)
+        b_month = request.form.get('birth_month', type=int)
+        b_day = request.form.get('birth_day', type=int)
+        b_notes = request.form.get('birth_notes', '').strip() or None
+        d_year = request.form.get('death_year', type=int)
+        d_month = request.form.get('death_month', type=int)
+        d_day = request.form.get('death_day', type=int)
+        d_notes = request.form.get('death_notes', '').strip() or None
+        city = request.form.get('birth_city', '').strip()
+        extra_info = request.form.get('extra_info', '').strip()
+
+        duplicates = find_duplicates(surname, name, patronymic, b_year, tree)
+        if duplicates['own'] or duplicates['others']:
+            return render_template('confirm_person.html', tree=tree,
+                                   surname=surname, name=name, patronymic=patronymic,
+                                   gender=gender,
+                                   birth_year=b_year, birth_month=b_month, birth_day=b_day,
+                                   birth_notes=b_notes,
+                                   death_year=d_year, death_month=d_month, death_day=d_day,
+                                   death_notes=d_notes, city=city,
+                                   extra_info=extra_info,
+                                   duplicates=duplicates,
+                                   person_type='godparent', parent_id=person.id,
+                                   second_parent_id=None, marriage_date=None)
+
+        godparent = Person(
+            tree_id=tree.id,
+            surname=surname, name=name, patronymic=patronymic, gender=gender,
+            birth_year=b_year, birth_month=b_month, birth_day=b_day, birth_notes=b_notes,
+            death_year=d_year, death_month=d_month, death_day=d_day, death_notes=d_notes,
+            birth_city=city, extra_info=extra_info
+        )
+        db.session.add(godparent)
+        db.session.flush()
+        pid1, pid2 = sorted([person.id, godparent.id])
+        link = SiblingLink(person1_id=pid1, person2_id=pid2, tree_id=tree.id,
+                           relation_type='godparent')
+        db.session.add(link)
+        db.session.commit()
+        flash('Крёстный/крёстная добавлен(а)', 'success')
+        return redirect(url_for('person.person_detail', person_id=person.id))
+
+    return render_template('add_godparent.html', tree=tree, person=person)
+
 @rel_bp.route('/person/<int:person_id>/add_step_parent', methods=['GET', 'POST'])
 @login_required
 def add_step_parent(person_id):

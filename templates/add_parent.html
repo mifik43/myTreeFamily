@@ -24,7 +24,11 @@
             <label>Отчество</label>
             <input type="text" name="patronymic" class="form-control">
         </div>
-
+        <div class="mb-3">
+    <label>Девичья фамилия</label>
+    <input type="text" name="maiden_name" class="form-control" value="{{ person.maiden_name if edit else '' }}" placeholder="Только для женщин">
+    <small class="text-muted">Если у женщины менялась фамилия — укажите девичью</small>
+</div>
         <div class="row">
     <div class="col-md-12 mb-3">
         <label>Дата рождения</label>

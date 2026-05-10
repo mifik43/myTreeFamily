@@ -23,11 +23,37 @@
     </div>
 </div>
 
+<!-- Поиск по ФИО -->
+<div class="row mb-3">
+    <div class="col-auto">
+        <form method="GET" action="{{ url_for('main.tree_detail') }}" class="row g-2 align-items-center">
+            <input type="hidden" name="view" value="{{ view }}">
+            <input type="hidden" name="surname" value="{{ current_surname or '' }}">
+            <div class="col-auto">
+                <input type="text" name="search" class="form-control form-control-sm" placeholder="Поиск ФИО" value="{{ search_query or '' }}">
+            </div>
+            <div class="col-auto">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="ye" id="yeCheck" value="1" {% if ye %}checked{% endif %}>
+                    <label class="form-check-label" for="yeCheck">е=ё</label>
+                </div>
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-sm btn-primary">Искать</button>
+                {% if search_query %}
+                    <a href="{{ url_for('main.tree_detail', view=view, surname=current_surname) }}" class="btn btn-sm btn-secondary">Сброс</a>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+</div>
+
 <!-- Переключатели вида -->
 <div class="mb-3 btn-group" role="group">
     <a href="{{ url_for('main.tree_detail', view='table', surname=current_surname) }}" class="btn btn-outline-secondary {% if view=='table' %}active{% endif %}">Таблица</a>
     <a href="{{ url_for('main.tree_detail', view='list', surname=current_surname) }}" class="btn btn-outline-secondary {% if view=='list' %}active{% endif %}">Список</a>
     <a href="{{ url_for('main.tree_detail', view='tree', surname=current_surname) }}" class="btn btn-outline-secondary {% if view=='tree' %}active{% endif %}">Граф</a>
+    <a href="{{ url_for('main.tree_detail', view='tree_view', surname=current_surname) }}" class="btn btn-outline-secondary {% if view=='tree_view' %}active{% endif %}">Дерево</a>
 </div>
 
 <!-- Кнопки добавления -->
@@ -41,7 +67,7 @@
     <table class="table table-striped">
         <thead>
             <tr>
-                <th>Фамилия</th>       <!-- новый столбец -->
+                <th>Фамилия</th>
                 <th>Имя и Отчество</th>
                 <th>Дата рождения</th>
                 <th>Город</th>
@@ -58,7 +84,7 @@
                     </a>
                 </td>
                 <td>{{ p.birth_display }}</td>
-                <td>{{ p.city or '-' }}</td>
+                <td>{{ p.birth_city or '-' }}</td>
                 <td>
                     <a href="{{ url_for('person.edit_person', person_id=p.id) }}" class="btn btn-sm btn-warning">Изм.</a>
                     <form method="POST" action="{{ url_for('person.delete_person', person_id=p.id) }}" style="display:inline" onsubmit="return confirm('Удалить персону и все её связи?')">
@@ -72,7 +98,6 @@
     {% else %}
         <p>Ваше дерево пусто. Добавьте родственников, начиная с себя.</p>
     {% endif %}
-
 
 {% elif view == 'list' %}
     {% if root_persons %}
@@ -120,8 +145,129 @@
         </div>
     </div>
     <div id="mynetwork" style="width: 100%; height: 650px; border: 1px solid #ddd; border-radius: 8px;"></div>
-{% endif %}
 
+{% elif view == 'tree_view' %}
+    <!-- Встроенные стили для дерева -->
+    <style>
+        .tree-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            overflow-x: auto;
+            padding: 20px 0;
+        }
+        .tree-level {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .tree-children {
+            display: flex;
+            flex-direction: row;
+            justify-content: center;
+            align-items: flex-start;
+            position: relative;
+            margin-top: 40px;
+        }
+        .tree-child-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+            margin: 0 15px;
+        }
+        .tree-card {
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            padding: 8px 12px;
+            background: #f8f9fa;
+            text-align: center;
+            font-size: 0.9em;
+            white-space: nowrap;
+            cursor: pointer;
+            transition: background 0.2s;
+            position: relative;
+            z-index: 1;
+            text-decoration: none;
+            color: inherit;
+            display: block;
+        }
+        .tree-card:hover {
+            background: #e9ecef;
+        }
+        .tree-card .name {
+            font-weight: bold;
+        }
+        .tree-card .dates {
+            color: #6c757d;
+            font-size: 0.8em;
+        }
+        /* линии */
+        .tree-child-wrapper::before {
+            content: '';
+            position: absolute;
+            top: -20px;
+            left: 50%;
+            width: 0;
+            height: 20px;
+            border-left: 1px solid #aaa;
+        }
+        .tree-children::before {
+            content: '';
+            position: absolute;
+            top: -20px;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: #aaa;
+        }
+        .parent-connector {
+            position: relative;
+        }
+        .parent-connector::after {
+            content: '';
+            position: absolute;
+            bottom: -20px;
+            left: 50%;
+            width: 0;
+            height: 20px;
+            border-left: 1px solid #aaa;
+        }
+    </style>
+
+    <div class="tree-container">
+        {% macro render_tree(person) %}
+            <div class="tree-level">
+                <div class="parent-connector">
+                    <a href="{{ url_for('person.person_detail', person_id=person.id) }}" class="tree-card">
+                        <div class="name">{{ person.full_name }}</div>
+                        <div class="dates">
+                            {{ person.birth_display }}
+                            {% if person.death_year or person.death_notes %}
+                                – {{ person.death_display }}
+                            {% endif %}
+                        </div>
+                    </a>
+                </div>
+                {% set children = person.children_father + person.children_mother %}
+                {% if children %}
+                    <div class="tree-children">
+                        {% for child in children|unique %}
+                            <div class="tree-child-wrapper">
+                                {{ render_tree(child) }}
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+        {% endmacro %}
+
+        {% for root in root_persons %}
+            {{ render_tree(root) }}
+            {% if not loop.last %}<hr style="width:80%;">{% endif %}
+        {% endfor %}
+    </div>
+{% endif %}
 {% endblock %}
 
 {% block scripts %}

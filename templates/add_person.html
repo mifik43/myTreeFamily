@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
 <h1>{% if edit %}Редактирование{% else %}Добавление{% endif %} персоны в дереве «{{ tree.name }}»</h1>
-<form method="POST">
+<form method="POST" enctype="multipart/form-data">
     <div class="row">
         <div class="col-md-6 mb-3">
             <label>Фамилия *</label>
@@ -16,115 +16,155 @@
         <label>Отчество</label>
         <input type="text" name="patronymic" class="form-control" value="{{ person.patronymic if edit and person.patronymic else '' }}">
     </div>
-    <div class="row">
-    <div class="col-md-12 mb-3">
-        <label>Дата рождения</label>
-        <div class="row g-1">
-            <div class="col-3">
-                <select name="birth_day" class="form-select">
-                    <option value="">День</option>
-                    {% for d in range(1,32) %}
-                        <option value="{{ d }}" {% if edit and person.birth_day == d %}selected{% endif %}>{{ d }}</option>
-                    {% endfor %}
-                </select>
+    <div class="mb-3">
+        <label>Девичья фамилия</label>
+        <input type="text" name="maiden_name" class="form-control" value="{{ person.maiden_name if edit else '' }}" placeholder="Только для женщин">
+        <small class="text-muted">Если у женщины менялась фамилия — укажите девичью</small>
+    </div>
+
+    <!-- Пол -->
+    <div class="mb-3">
+        <label>Пол *</label>
+        <div>
+            <div class="form-check form-check-inline">
+                <input class="form-check-input" type="radio" name="gender" id="genderM" value="M"
+                       {% if (edit and person.gender == 'M') or not edit %}checked{% endif %}>
+                <label class="form-check-label" for="genderM">Мужской</label>
             </div>
-            <div class="col-3">
-                <select name="birth_month" class="form-select">
-                    <option value="">Месяц</option>
-                    {% for m in range(1,13) %}
-                        <option value="{{ m }}" {% if edit and person.birth_month == m %}selected{% endif %}>{{ m }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="col-3">
-                <input type="number" name="birth_year" class="form-control" placeholder="Год" value="{{ person.birth_year if edit else '' }}">
-            </div>
-            <div class="col-3">
-                <input type="text" name="birth_notes" class="form-control" placeholder="Описание" value="{{ person.birth_notes if edit else '' }}">
+            <div class="form-check form-check-inline">
+                <input class="form-check-input" type="radio" name="gender" id="genderF" value="F"
+                       {% if edit and person.gender == 'F' %}checked{% endif %}>
+                <label class="form-check-label" for="genderF">Женский</label>
             </div>
         </div>
     </div>
-</div>
-<div class="row">
-    <div class="col-md-12 mb-3">
-        <label>Дата смерти</label>
-        <div class="row g-1">
-            <div class="col-3">
-                <select name="death_day" class="form-select">
-                    <option value="">День</option>
-                    {% for d in range(1,32) %}
-                        <option value="{{ d }}" {% if edit and person.death_day == d %}selected{% endif %}>{{ d }}</option>
-                    {% endfor %}
-                </select>
+
+    <!-- Дата рождения (текстовое поле + примечание) -->
+    <div class="row">
+        <div class="col-md-6 mb-3">
+            <label>Дата рождения</label>
+            <input type="text" name="birth_date_input" class="form-control" placeholder="дд.мм.гггг или год"
+                   value="{% if edit %}{{ person.birth_day or '' }}{% if person.birth_month %}.{{ '%02d' % person.birth_month }}{% endif %}{% if person.birth_year %}.{{ person.birth_year }}{% endif %}{% endif %}">
+            <small class="text-muted">Оставьте пустым, если неизвестно. Для неточных дат используйте примечание.</small>
+        </div>
+        <div class="col-md-6 mb-3">
+            <label>Примечание к рождению</label>
+            <input type="text" name="birth_notes" class="form-control" value="{{ person.birth_notes if edit else '' }}">
+        </div>
+    </div>
+
+    <!-- Галочка "Умер(ла)" и дата смерти -->
+    <div class="form-check mb-3">
+        <input class="form-check-input" type="checkbox" name="is_dead" id="is_dead" value="1"
+               {% if edit and (person.death_year or person.death_notes) %}checked{% endif %}>
+        <label class="form-check-label" for="is_dead">Умер(ла)</label>
+    </div>
+    <div id="deathFields" style="display: none;">
+        <div class="row">
+            <div class="col-md-6 mb-3">
+                <label>Дата смерти</label>
+                <input type="text" name="death_date_input" class="form-control" placeholder="дд.мм.гггг или год"
+                       value="{% if edit %}{{ person.death_day or '' }}{% if person.death_month %}.{{ '%02d' % person.death_month }}{% endif %}{% if person.death_year %}.{{ person.death_year }}{% endif %}{% endif %}">
             </div>
-            <div class="col-3">
-                <select name="death_month" class="form-select">
-                    <option value="">Месяц</option>
-                    {% for m in range(1,13) %}
-                        <option value="{{ m }}" {% if edit and person.death_month == m %}selected{% endif %}>{{ m }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="col-3">
-                <input type="number" name="death_year" class="form-control" placeholder="Год" value="{{ person.death_year if edit else '' }}">
-            </div>
-            <div class="col-3">
-                <input type="text" name="death_notes" class="form-control" placeholder="Описание" value="{{ person.death_notes if edit else '' }}">
+            <div class="col-md-6 mb-3">
+                <label>Примечание к смерти</label>
+                <input type="text" name="death_notes" class="form-control" value="{{ person.death_notes if edit else '' }}">
             </div>
         </div>
     </div>
-</div>
+
+    <!-- Город рождения -->
+    <div class="mb-3">
+        <label>Город рождения</label>
+        <input type="text" name="birth_city" class="form-control" value="{{ person.birth_city if edit else '' }}">
+    </div>
+
+    <!-- Дополнительная информация -->
+    <div class="mb-3">
+        <label>Дополнительная информация</label>
+        <textarea name="extra_info" class="form-control" rows="3">{{ person.extra_info if edit else '' }}</textarea>
+        <small class="text-muted">Служба, работа, участие в войнах, награды и т.д.</small>
+    </div>
+
+    <!-- Фотография -->
+    <div class="mb-3">
+        <label>Фотография</label>
+        <input type="file" name="photo" class="form-control">
+        {% if edit and person.photo %}
+            <img src="{{ url_for('static', filename='uploads/' + person.photo) }}" style="max-height: 100px;" class="mt-2">
+        {% endif %}
+    </div>
+
+    <!-- Соцсети -->
     <div class="row">
         <div class="col-md-6 mb-3">
-            <label>Город</label>
-            <input type="text" name="city" class="form-control" value="{{ person.city if edit else '' }}">
+            <label>Одноклассники</label>
+            <input type="text" name="social_ok" class="form-control" value="{{ person.social_ok if edit else '' }}">
         </div>
         <div class="col-md-6 mb-3">
-            <label>Пол *</label>
-            <select name="gender" class="form-select" required>
-                <option value="M" {% if edit and person.gender == 'M' %}selected{% endif %}>Мужской</option>
-                <option value="F" {% if edit and person.gender == 'F' %}selected{% endif %}>Женский</option>
-            </select>
+            <label>ВКонтакте</label>
+            <input type="text" name="social_vk" class="form-control" value="{{ person.social_vk if edit else '' }}">
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-md-6 mb-3">
+            <label>Telegram</label>
+            <input type="text" name="social_telegram" class="form-control" value="{{ person.social_telegram if edit else '' }}">
+        </div>
+        <div class="col-md-6 mb-3">
+            <label>Mail</label>
+            <input type="text" name="social_mail" class="form-control" value="{{ person.social_mail if edit else '' }}">
         </div>
     </div>
 
     {% if edit %}
-    <h4>Родители</h4>
-    <div class="row mb-3">
-        <div class="col-md-6">
-            <p><strong>Отец:</strong>
-            {% if person.father %}
-                <a href="{{ url_for('person.person_detail', person_id=person.father.id) }}">{{ person.father.full_name }}</a>
-                <form method="POST" action="{{ url_for('relationships.remove_parent', person_id=person.id, parent_id=person.father.id) }}" style="display:inline;" onsubmit="return confirm('Удалить отца?');">
-                    <button class="btn btn-sm btn-outline-danger" title="Удалить отца">✕</button>
-                </form>
-            {% else %}
-                <span class="text-muted">не указан</span>
-                <a href="{{ url_for('relationships.add_parent', person_id=person.id, gender='M') }}" class="btn btn-sm btn-outline-secondary ms-2">Добавить отца</a>
-            {% endif %}
-            </p>
+        <h4>Родители</h4>
+        <div class="row mb-3">
+            <div class="col-md-6">
+                <p><strong>Отец:</strong>
+                {% if person.father %}
+                    <a href="{{ url_for('person.person_detail', person_id=person.father.id) }}">{{ person.father.full_name }}</a>
+                    <form method="POST" action="{{ url_for('relationships.remove_parent', person_id=person.id, parent_id=person.father.id) }}" style="display:inline;" onsubmit="return confirm('Удалить отца?');">
+                        <button class="btn btn-sm btn-outline-danger" title="Удалить отца">✕</button>
+                    </form>
+                {% else %}
+                    <span class="text-muted">не указан</span>
+                    <a href="{{ url_for('relationships.add_parent', person_id=person.id, gender='M') }}" class="btn btn-sm btn-outline-secondary ms-2">Добавить отца</a>
+                {% endif %}
+                </p>
+            </div>
+            <div class="col-md-6">
+                <p><strong>Мать:</strong>
+                {% if person.mother %}
+                    <a href="{{ url_for('person.person_detail', person_id=person.mother.id) }}">{{ person.mother.full_name }}</a>
+                    <form method="POST" action="{{ url_for('relationships.remove_parent', person_id=person.id, parent_id=person.mother.id) }}" style="display:inline;" onsubmit="return confirm('Удалить мать?');">
+                        <button class="btn btn-sm btn-outline-danger" title="Удалить мать">✕</button>
+                    </form>
+                {% else %}
+                    <span class="text-muted">не указана</span>
+                    <a href="{{ url_for('relationships.add_parent', person_id=person.id, gender='F') }}" class="btn btn-sm btn-outline-secondary ms-2">Добавить мать</a>
+                {% endif %}
+                </p>
+            </div>
         </div>
-        <div class="col-md-6">
-            <p><strong>Мать:</strong>
-            {% if person.mother %}
-                <a href="{{ url_for('person.person_detail', person_id=person.mother.id) }}">{{ person.mother.full_name }}</a>
-                <form method="POST" action="{{ url_for('relationships.remove_parent', person_id=person.id, parent_id=person.mother.id) }}" style="display:inline;" onsubmit="return confirm('Удалить мать?');">
-                    <button class="btn btn-sm btn-outline-danger" title="Удалить мать">✕</button>
-                </form>
-            {% else %}
-                <span class="text-muted">не указана</span>
-                <a href="{{ url_for('relationships.add_parent', person_id=person.id, gender='F') }}" class="btn btn-sm btn-outline-secondary ms-2">Добавить мать</a>
-            {% endif %}
-            </p>
-        </div>
-    </div>
-{% endif %}
+    {% endif %}
 
-    <button class="btn btn-primary">Сохранить</button>
+    <button type="submit" class="btn btn-primary">Сохранить</button>
     {% if edit %}
         <a href="{{ url_for('person.person_detail', person_id=person.id) }}" class="btn btn-secondary">Отмена</a>
     {% else %}
         <a href="{{ url_for('main.tree_detail') }}" class="btn btn-secondary">Отмена</a>
     {% endif %}
 </form>
+{% endblock %}
+{% block scripts %}
+<script>
+    const isDeadCheckbox = document.getElementById('is_dead');
+    const deathFields = document.getElementById('deathFields');
+    function toggleDeathFields() {
+        deathFields.style.display = isDeadCheckbox.checked ? 'block' : 'none';
+    }
+    isDeadCheckbox.addEventListener('change', toggleDeathFields);
+    toggleDeathFields();
+</script>
 {% endblock %}

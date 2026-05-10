@@ -1,22 +1,20 @@
 {% extends "base.html" %}
 {% block content %}
 <h1>Найдены возможные дубликаты</h1>
-<p>Создаваемая персона: <strong>{{ surname }} {{ name }} {{ patronymic }}</strong>,
-   год рождения: {{ birth_year if birth_year else 'не указан' }}</p>
+<p>Создаваемая персона: <strong>{{ surname }} {{ name }} {{ patronymic }}</strong>, год рождения: {{ birth_year if birth_year else 'не указан' }}</p>
 
 {% if duplicates.own %}
     <h3>В вашем дереве</h3>
     <ul>
     {% for dup in duplicates.own %}
         <li>
-            {{ dup.full_name }}
-            ({{ dup.birth_display }}) –
+            {{ dup.full_name }} ({{ dup.birth_display }}) –
             <button type="button" class="btn btn-sm btn-outline-success"
                     onclick="useExisting('{{ dup.id }}')">Использовать этого человека</button>
         </li>
     {% endfor %}
     </ul>
-    <p>Вы можете выбрать существующую персону, чтобы не создавать дубликат, либо добавить нового.</p>
+    <p>Вы можете выбрать существующую персону, чтобы не создавать дубликат.</p>
 {% endif %}
 
 {% if duplicates.others %}
@@ -26,22 +24,19 @@
         <li>
             {{ dup.full_name }} ({{ dup.birth_display }}) –
             владелец: <strong>{{ username }}</strong>
-            {% if email %}
-                (<a href="mailto:{{ email }}">{{ email }}</a>)
-            {% else %}
-                (контакт не указан)
-            {% endif %}
+            {% if email %}(<a href="mailto:{{ email }}">{{ email }}</a>){% endif %}
         </li>
     {% endfor %}
     </ul>
-    <p>Это могут быть записи об одном и том же человеке. Вы можете связаться с владельцем.</p>
 {% endif %}
 
 <hr>
 <form method="POST" action="{{ url_for('confirm.confirm_person') }}" id="mainForm">
+    <!-- Скрытые поля с исходными данными -->
     <input type="hidden" name="surname" value="{{ surname }}">
     <input type="hidden" name="name" value="{{ name }}">
     <input type="hidden" name="patronymic" value="{{ patronymic or '' }}">
+    <input type="hidden" name="maiden_name" value="{{ maiden_name or '' }}">
     <input type="hidden" name="gender" value="{{ gender }}">
     <input type="hidden" name="birth_year" value="{{ birth_year or '' }}">
     <input type="hidden" name="birth_month" value="{{ birth_month or '' }}">
@@ -51,7 +46,8 @@
     <input type="hidden" name="death_month" value="{{ death_month or '' }}">
     <input type="hidden" name="death_day" value="{{ death_day or '' }}">
     <input type="hidden" name="death_notes" value="{{ death_notes or '' }}">
-    <input type="hidden" name="city" value="{{ city or '' }}">
+    <input type="hidden" name="birth_city" value="{{ birth_city or '' }}">
+    <input type="hidden" name="extra_info" value="{{ extra_info or '' }}">
     <input type="hidden" name="person_type" value="{{ person_type or '' }}">
     <input type="hidden" name="parent_id" value="{{ parent_id or '' }}">
     <input type="hidden" name="second_parent_id" value="{{ second_parent_id or '' }}">

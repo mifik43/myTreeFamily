@@ -1,15 +1,27 @@
-from datetime import datetime
-from flask import Blueprint, render_template, redirect, url_for, request, flash, abort
+from flask import Blueprint, render_template, redirect, url_for, request, flash, abort, session
 from flask_login import login_required, current_user
 from models import db, Person, Marriage, SiblingLink
-from utils import find_duplicates
+from utils import find_duplicates, parse_date
+from helpers import get_active_tree
+from datetime import datetime
+import os
+from werkzeug.utils import secure_filename
 
 rel_bp = Blueprint('relationships', __name__)
+
+UPLOAD_FOLDER = 'static/uploads'
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 @rel_bp.route('/marriage/add', methods=['GET', 'POST'])
 @login_required
 def add_marriage():
-    tree = current_user.tree
+    tree = get_active_tree()
+    if not tree:
+        flash('Нет активного дерева', 'danger')
+        return redirect(url_for('main.tree_detail'))
     if request.method == 'POST':
         husband_id = int(request.form.get('husband_id', 0))
         wife_id = int(request.form.get('wife_id', 0))
@@ -17,8 +29,10 @@ def add_marriage():
             flash('Необходимо выбрать мужа и жену', 'danger')
             return redirect(url_for('relationships.add_marriage'))
         marriage_date_str = request.form.get('marriage_date')
-        marriage_date = datetime.strptime(marriage_date_str, '%Y-%m-%d').date() if marriage_date_str else None
-
+        m_year, m_month, m_day, _ = parse_date(marriage_date_str) if marriage_date_str else (None, None, None, None)
+        marriage_date = None
+        if m_year:
+            marriage_date = datetime(m_year, m_month or 1, m_day or 1).date()
         h = Person.query.get(husband_id)
         w = Person.query.get(wife_id)
         if not h or not w or h.tree_id != tree.id or w.tree_id != tree.id:
@@ -36,7 +50,9 @@ def add_marriage():
 @rel_bp.route('/person/<int:person_id>/add_child', methods=['GET', 'POST'])
 @login_required
 def add_child(person_id):
-    tree = current_user.tree
+    tree = get_active_tree()
+    if not tree:
+        abort(403)
     parent = Person.query.get_or_404(person_id)
     if parent.tree_id != tree.id:
         abort(403)
@@ -52,26 +68,38 @@ def add_child(person_id):
         if gender not in ('M', 'F'):
             flash('Некорректный пол', 'danger')
             return render_template('add_child.html', tree=tree, parent=parent)
-        b_year = request.form.get('birth_year', type=int)
-        b_month = request.form.get('birth_month', type=int)
-        b_day = request.form.get('birth_day', type=int)
+        maiden_name = request.form.get('maiden_name', '').strip() or None
+
+        birth_str = request.form.get('birth_date_input', '').strip()
+        death_str = request.form.get('death_date_input', '').strip()
         b_notes = request.form.get('birth_notes', '').strip() or None
-        d_year = request.form.get('death_year', type=int)
-        d_month = request.form.get('death_month', type=int)
-        d_day = request.form.get('death_day', type=int)
         d_notes = request.form.get('death_notes', '').strip() or None
-        city = request.form.get('city', '').strip()
+        is_dead = request.form.get('is_dead') == '1'
+        if not is_dead:
+            death_str = ''
+            d_notes = ''
+
+        b_year, b_month, b_day, b_notes_parsed = parse_date(birth_str)
+        if b_notes_parsed:
+            b_notes = (b_notes_parsed + '; ' + b_notes) if b_notes else b_notes_parsed
+        d_year, d_month, d_day, d_notes_parsed = parse_date(death_str)
+        if d_notes_parsed:
+            d_notes = (d_notes_parsed + '; ' + d_notes) if d_notes else d_notes_parsed
+
+        birth_city = request.form.get('birth_city', '').strip()
+        extra_info = request.form.get('extra_info', '').strip()
         second_parent_id = request.form.get('second_parent_id')
 
-        duplicates = find_duplicates(surname, name, patronymic, b_year, tree)
+        duplicates = find_duplicates(surname, name, patronymic, b_year, tree, maiden_name)
         if duplicates['own'] or duplicates['others']:
             return render_template('confirm_person.html', tree=tree,
                                    surname=surname, name=name, patronymic=patronymic,
-                                   gender=gender,
+                                   gender=gender, maiden_name=maiden_name,
                                    birth_year=b_year, birth_month=b_month, birth_day=b_day,
                                    birth_notes=b_notes,
                                    death_year=d_year, death_month=d_month, death_day=d_day,
-                                   death_notes=d_notes, city=city,
+                                   death_notes=d_notes,
+                                   birth_city=birth_city, extra_info=extra_info,
                                    duplicates=duplicates,
                                    person_type='child', parent_id=parent.id,
                                    second_parent_id=second_parent_id,
@@ -80,9 +108,12 @@ def add_child(person_id):
         child = Person(
             tree_id=tree.id,
             surname=surname, name=name, patronymic=patronymic, gender=gender,
-            birth_year=b_year, birth_month=b_month, birth_day=b_day, birth_notes=b_notes,
-            death_year=d_year, death_month=d_month, death_day=d_day, death_notes=d_notes,
-            city=city
+            maiden_name=maiden_name,
+            birth_year=b_year, birth_month=b_month, birth_day=b_day,
+            birth_notes=b_notes,
+            death_year=d_year, death_month=d_month, death_day=d_day,
+            death_notes=d_notes,
+            birth_city=birth_city, extra_info=extra_info
         )
         if parent.gender == 'M':
             child.father_id = parent.id
@@ -108,7 +139,9 @@ def add_child(person_id):
 @rel_bp.route('/person/<int:person_id>/add_spouse', methods=['GET', 'POST'])
 @login_required
 def add_spouse(person_id):
-    tree = current_user.tree
+    tree = get_active_tree()
+    if not tree:
+        abort(403)
     person = Person.query.get_or_404(person_id)
     if person.tree_id != tree.id:
         abort(403)
@@ -121,27 +154,40 @@ def add_spouse(person_id):
             flash('Фамилия и Имя обязательны', 'danger')
             return render_template('add_spouse.html', tree=tree, person=person, opposite_gender=opposite_gender)
         patronymic = request.form.get('patronymic', '').strip() or None
-        b_year = request.form.get('birth_year', type=int)
-        b_month = request.form.get('birth_month', type=int)
-        b_day = request.form.get('birth_day', type=int)
+        maiden_name = request.form.get('maiden_name', '').strip() or None
+        birth_str = request.form.get('birth_date_input', '').strip()
+        death_str = request.form.get('death_date_input', '').strip()
         b_notes = request.form.get('birth_notes', '').strip() or None
-        d_year = request.form.get('death_year', type=int)
-        d_month = request.form.get('death_month', type=int)
-        d_day = request.form.get('death_day', type=int)
         d_notes = request.form.get('death_notes', '').strip() or None
-        city = request.form.get('city', '').strip()
-        marriage_date_str = request.form.get('marriage_date')
-        marriage_date = datetime.strptime(marriage_date_str, '%Y-%m-%d').date() if marriage_date_str else None
+        is_dead = request.form.get('is_dead') == '1'
+        if not is_dead:
+            death_str = ''
+            d_notes = ''
+        b_year, b_month, b_day, b_notes_parsed = parse_date(birth_str)
+        if b_notes_parsed:
+            b_notes = (b_notes_parsed + '; ' + b_notes) if b_notes else b_notes_parsed
+        d_year, d_month, d_day, d_notes_parsed = parse_date(death_str)
+        if d_notes_parsed:
+            d_notes = (d_notes_parsed + '; ' + d_notes) if d_notes else d_notes_parsed
 
-        duplicates = find_duplicates(surname, name, patronymic, b_year, tree)
+        birth_city = request.form.get('birth_city', '').strip()
+        extra_info = request.form.get('extra_info', '').strip()
+        marriage_date_str = request.form.get('marriage_date')
+        m_year, m_month, m_day, _ = parse_date(marriage_date_str) if marriage_date_str else (None, None, None, None)
+        marriage_date = None
+        if m_year:
+            marriage_date = datetime(m_year, m_month or 1, m_day or 1).date()
+
+        duplicates = find_duplicates(surname, name, patronymic, b_year, tree, maiden_name)
         if duplicates['own'] or duplicates['others']:
             return render_template('confirm_person.html', tree=tree,
                                    surname=surname, name=name, patronymic=patronymic,
-                                   gender=opposite_gender,
+                                   gender=opposite_gender, maiden_name=maiden_name,
                                    birth_year=b_year, birth_month=b_month, birth_day=b_day,
                                    birth_notes=b_notes,
                                    death_year=d_year, death_month=d_month, death_day=d_day,
-                                   death_notes=d_notes, city=city,
+                                   death_notes=d_notes,
+                                   birth_city=birth_city, extra_info=extra_info,
                                    duplicates=duplicates,
                                    person_type='spouse', parent_id=person.id,
                                    second_parent_id=None,
@@ -150,9 +196,12 @@ def add_spouse(person_id):
         spouse = Person(
             tree_id=tree.id,
             surname=surname, name=name, patronymic=patronymic, gender=opposite_gender,
-            birth_year=b_year, birth_month=b_month, birth_day=b_day, birth_notes=b_notes,
-            death_year=d_year, death_month=d_month, death_day=d_day, death_notes=d_notes,
-            city=city
+            maiden_name=maiden_name,
+            birth_year=b_year, birth_month=b_month, birth_day=b_day,
+            birth_notes=b_notes,
+            death_year=d_year, death_month=d_month, death_day=d_day,
+            death_notes=d_notes,
+            birth_city=birth_city, extra_info=extra_info
         )
         db.session.add(spouse)
         db.session.flush()
@@ -170,7 +219,9 @@ def add_spouse(person_id):
 @rel_bp.route('/person/<int:person_id>/add_parent', methods=['GET', 'POST'])
 @login_required
 def add_parent(person_id):
-    tree = current_user.tree
+    tree = get_active_tree()
+    if not tree:
+        abort(403)
     child = Person.query.get_or_404(person_id)
     if child.tree_id != tree.id:
         abort(403)
@@ -207,25 +258,34 @@ def add_parent(person_id):
             flash('Фамилия и Имя обязательны', 'danger')
             return render_template('add_parent.html', tree=tree, person=child, missing_gender=missing_gender)
         patronymic = request.form.get('patronymic', '').strip() or None
-        b_year = request.form.get('birth_year', type=int)
-        b_month = request.form.get('birth_month', type=int)
-        b_day = request.form.get('birth_day', type=int)
+        maiden_name = request.form.get('maiden_name', '').strip() or None
+        birth_str = request.form.get('birth_date_input', '').strip()
+        death_str = request.form.get('death_date_input', '').strip()
         b_notes = request.form.get('birth_notes', '').strip() or None
-        d_year = request.form.get('death_year', type=int)
-        d_month = request.form.get('death_month', type=int)
-        d_day = request.form.get('death_day', type=int)
         d_notes = request.form.get('death_notes', '').strip() or None
-        city = request.form.get('city', '').strip()
+        is_dead = request.form.get('is_dead') == '1'
+        if not is_dead:
+            death_str = ''
+            d_notes = ''
+        b_year, b_month, b_day, b_notes_parsed = parse_date(birth_str)
+        if b_notes_parsed:
+            b_notes = (b_notes_parsed + '; ' + b_notes) if b_notes else b_notes_parsed
+        d_year, d_month, d_day, d_notes_parsed = parse_date(death_str)
+        if d_notes_parsed:
+            d_notes = (d_notes_parsed + '; ' + d_notes) if d_notes else d_notes_parsed
+        birth_city = request.form.get('birth_city', '').strip()
+        extra_info = request.form.get('extra_info', '').strip()
 
-        duplicates = find_duplicates(surname, name, patronymic, b_year, tree)
+        duplicates = find_duplicates(surname, name, patronymic, b_year, tree, maiden_name)
         if duplicates['own'] or duplicates['others']:
             return render_template('confirm_person.html', tree=tree,
                                    surname=surname, name=name, patronymic=patronymic,
-                                   gender=gender,
+                                   gender=gender, maiden_name=maiden_name,
                                    birth_year=b_year, birth_month=b_month, birth_day=b_day,
                                    birth_notes=b_notes,
                                    death_year=d_year, death_month=d_month, death_day=d_day,
-                                   death_notes=d_notes, city=city,
+                                   death_notes=d_notes,
+                                   birth_city=birth_city, extra_info=extra_info,
                                    duplicates=duplicates,
                                    person_type='parent', parent_id=child.id,
                                    second_parent_id=None, marriage_date=None)
@@ -233,9 +293,12 @@ def add_parent(person_id):
         parent = Person(
             tree_id=tree.id,
             surname=surname, name=name, patronymic=patronymic, gender=gender,
-            birth_year=b_year, birth_month=b_month, birth_day=b_day, birth_notes=b_notes,
-            death_year=d_year, death_month=d_month, death_day=d_day, death_notes=d_notes,
-            city=city
+            maiden_name=maiden_name,
+            birth_year=b_year, birth_month=b_month, birth_day=b_day,
+            birth_notes=b_notes,
+            death_year=d_year, death_month=d_month, death_day=d_day,
+            death_notes=d_notes,
+            birth_city=birth_city, extra_info=extra_info
         )
         db.session.add(parent)
         db.session.flush()
@@ -252,7 +315,9 @@ def add_parent(person_id):
 @rel_bp.route('/person/<int:person_id>/add_sibling', methods=['GET', 'POST'])
 @login_required
 def add_sibling(person_id):
-    tree = current_user.tree
+    tree = get_active_tree()
+    if not tree:
+        abort(403)
     person = Person.query.get_or_404(person_id)
     if person.tree_id != tree.id:
         abort(403)
@@ -264,29 +329,38 @@ def add_sibling(person_id):
             flash('Фамилия и Имя обязательны', 'danger')
             return render_template('add_sibling.html', tree=tree, person=person)
         patronymic = request.form.get('patronymic', '').strip() or None
+        maiden_name = request.form.get('maiden_name', '').strip() or None
         gender = request.form.get('gender')
         if gender not in ('M', 'F'):
             flash('Некорректный пол', 'danger')
             return render_template('add_sibling.html', tree=tree, person=person)
-        b_year = request.form.get('birth_year', type=int)
-        b_month = request.form.get('birth_month', type=int)
-        b_day = request.form.get('birth_day', type=int)
+        birth_str = request.form.get('birth_date_input', '').strip()
+        death_str = request.form.get('death_date_input', '').strip()
         b_notes = request.form.get('birth_notes', '').strip() or None
-        d_year = request.form.get('death_year', type=int)
-        d_month = request.form.get('death_month', type=int)
-        d_day = request.form.get('death_day', type=int)
         d_notes = request.form.get('death_notes', '').strip() or None
-        city = request.form.get('city', '').strip()
+        is_dead = request.form.get('is_dead') == '1'
+        if not is_dead:
+            death_str = ''
+            d_notes = ''
+        b_year, b_month, b_day, b_notes_parsed = parse_date(birth_str)
+        if b_notes_parsed:
+            b_notes = (b_notes_parsed + '; ' + b_notes) if b_notes else b_notes_parsed
+        d_year, d_month, d_day, d_notes_parsed = parse_date(death_str)
+        if d_notes_parsed:
+            d_notes = (d_notes_parsed + '; ' + d_notes) if d_notes else d_notes_parsed
+        birth_city = request.form.get('birth_city', '').strip()
+        extra_info = request.form.get('extra_info', '').strip()
 
-        duplicates = find_duplicates(surname, name, patronymic, b_year, tree)
+        duplicates = find_duplicates(surname, name, patronymic, b_year, tree, maiden_name)
         if duplicates['own'] or duplicates['others']:
             return render_template('confirm_person.html', tree=tree,
                                    surname=surname, name=name, patronymic=patronymic,
-                                   gender=gender,
+                                   gender=gender, maiden_name=maiden_name,
                                    birth_year=b_year, birth_month=b_month, birth_day=b_day,
                                    birth_notes=b_notes,
                                    death_year=d_year, death_month=d_month, death_day=d_day,
-                                   death_notes=d_notes, city=city,
+                                   death_notes=d_notes,
+                                   birth_city=birth_city, extra_info=extra_info,
                                    duplicates=duplicates,
                                    person_type='sibling', parent_id=person.id,
                                    second_parent_id=None, marriage_date=None)
@@ -294,9 +368,12 @@ def add_sibling(person_id):
         sibling = Person(
             tree_id=tree.id,
             surname=surname, name=name, patronymic=patronymic, gender=gender,
-            birth_year=b_year, birth_month=b_month, birth_day=b_day, birth_notes=b_notes,
-            death_year=d_year, death_month=d_month, death_day=d_day, death_notes=d_notes,
-            city=city
+            maiden_name=maiden_name,
+            birth_year=b_year, birth_month=b_month, birth_day=b_day,
+            birth_notes=b_notes,
+            death_year=d_year, death_month=d_month, death_day=d_day,
+            death_notes=d_notes,
+            birth_city=birth_city, extra_info=extra_info
         )
         if person.father or person.mother:
             sibling.father_id = person.father_id
@@ -318,73 +395,12 @@ def add_sibling(person_id):
 
     return render_template('add_sibling.html', tree=tree, person=person)
 
-@rel_bp.route('/person/<int:person_id>/add_godparent', methods=['GET', 'POST'])
-@login_required
-def add_godparent(person_id):
-    tree = current_user.tree
-    person = Person.query.get_or_404(person_id)
-    if person.tree_id != tree.id:
-        abort(403)
-
-    if request.method == 'POST':
-        surname = request.form.get('surname', '').strip()
-        name = request.form.get('name', '').strip()
-        if not surname or not name:
-            flash('Фамилия и Имя обязательны', 'danger')
-            return render_template('add_godparent.html', tree=tree, person=person)
-        patronymic = request.form.get('patronymic', '').strip() or None
-        gender = request.form.get('gender')
-        if gender not in ('M', 'F'):
-            flash('Некорректный пол', 'danger')
-            return render_template('add_godparent.html', tree=tree, person=person)
-        b_year = request.form.get('birth_year', type=int)
-        b_month = request.form.get('birth_month', type=int)
-        b_day = request.form.get('birth_day', type=int)
-        b_notes = request.form.get('birth_notes', '').strip() or None
-        d_year = request.form.get('death_year', type=int)
-        d_month = request.form.get('death_month', type=int)
-        d_day = request.form.get('death_day', type=int)
-        d_notes = request.form.get('death_notes', '').strip() or None
-        city = request.form.get('birth_city', '').strip()
-        extra_info = request.form.get('extra_info', '').strip()
-
-        duplicates = find_duplicates(surname, name, patronymic, b_year, tree)
-        if duplicates['own'] or duplicates['others']:
-            return render_template('confirm_person.html', tree=tree,
-                                   surname=surname, name=name, patronymic=patronymic,
-                                   gender=gender,
-                                   birth_year=b_year, birth_month=b_month, birth_day=b_day,
-                                   birth_notes=b_notes,
-                                   death_year=d_year, death_month=d_month, death_day=d_day,
-                                   death_notes=d_notes, city=city,
-                                   extra_info=extra_info,
-                                   duplicates=duplicates,
-                                   person_type='godparent', parent_id=person.id,
-                                   second_parent_id=None, marriage_date=None)
-
-        godparent = Person(
-            tree_id=tree.id,
-            surname=surname, name=name, patronymic=patronymic, gender=gender,
-            birth_year=b_year, birth_month=b_month, birth_day=b_day, birth_notes=b_notes,
-            death_year=d_year, death_month=d_month, death_day=d_day, death_notes=d_notes,
-            birth_city=city, extra_info=extra_info
-        )
-        db.session.add(godparent)
-        db.session.flush()
-        pid1, pid2 = sorted([person.id, godparent.id])
-        link = SiblingLink(person1_id=pid1, person2_id=pid2, tree_id=tree.id,
-                           relation_type='godparent')
-        db.session.add(link)
-        db.session.commit()
-        flash('Крёстный/крёстная добавлен(а)', 'success')
-        return redirect(url_for('person.person_detail', person_id=person.id))
-
-    return render_template('add_godparent.html', tree=tree, person=person)
-
 @rel_bp.route('/person/<int:person_id>/add_step_parent', methods=['GET', 'POST'])
 @login_required
 def add_step_parent(person_id):
-    tree = current_user.tree
+    tree = get_active_tree()
+    if not tree:
+        abort(403)
     person = Person.query.get_or_404(person_id)
     if person.tree_id != tree.id:
         abort(403)
@@ -404,17 +420,27 @@ def add_step_parent(person_id):
             flash('Фамилия и Имя обязательны', 'danger')
             return render_template('add_step_parent.html', tree=tree, person=person)
         gender = 'F' if parent.gender == 'M' else 'M'
-        b_year = request.form.get('birth_year', type=int)
-        b_month = request.form.get('birth_month', type=int)
-        b_day = request.form.get('birth_day', type=int)
+        birth_str = request.form.get('birth_date_input', '').strip()
+        death_str = request.form.get('death_date_input', '').strip()
         b_notes = request.form.get('birth_notes', '').strip() or None
-        d_year = request.form.get('death_year', type=int)
-        d_month = request.form.get('death_month', type=int)
-        d_day = request.form.get('death_day', type=int)
         d_notes = request.form.get('death_notes', '').strip() or None
-        city = request.form.get('city', '').strip()
+        is_dead = request.form.get('is_dead') == '1'
+        if not is_dead:
+            death_str = ''
+            d_notes = ''
+        b_year, b_month, b_day, b_notes_parsed = parse_date(birth_str)
+        if b_notes_parsed:
+            b_notes = (b_notes_parsed + '; ' + b_notes) if b_notes else b_notes_parsed
+        d_year, d_month, d_day, d_notes_parsed = parse_date(death_str)
+        if d_notes_parsed:
+            d_notes = (d_notes_parsed + '; ' + d_notes) if d_notes else d_notes_parsed
+        birth_city = request.form.get('birth_city', '').strip()
+        extra_info = request.form.get('extra_info', '').strip()
         marriage_date_str = request.form.get('marriage_date')
-        marriage_date = datetime.strptime(marriage_date_str, '%Y-%m-%d').date() if marriage_date_str else None
+        m_year, m_month, m_day, _ = parse_date(marriage_date_str) if marriage_date_str else (None, None, None, None)
+        marriage_date = None
+        if m_year:
+            marriage_date = datetime(m_year, m_month or 1, m_day or 1).date()
 
         duplicates = find_duplicates(surname, name, None, b_year, tree)
         if duplicates['own'] or duplicates['others']:
@@ -424,7 +450,8 @@ def add_step_parent(person_id):
                                    birth_year=b_year, birth_month=b_month, birth_day=b_day,
                                    birth_notes=b_notes,
                                    death_year=d_year, death_month=d_month, death_day=d_day,
-                                   death_notes=d_notes, city=city,
+                                   death_notes=d_notes,
+                                   birth_city=birth_city, extra_info=extra_info,
                                    duplicates=duplicates,
                                    person_type='step_parent', parent_id=parent.id,
                                    second_parent_id=None, marriage_date=marriage_date_str,
@@ -433,9 +460,11 @@ def add_step_parent(person_id):
         spouse = Person(
             tree_id=tree.id,
             surname=surname, name=name, patronymic=None, gender=gender,
-            birth_year=b_year, birth_month=b_month, birth_day=b_day, birth_notes=b_notes,
-            death_year=d_year, death_month=d_month, death_day=d_day, death_notes=d_notes,
-            city=city
+            birth_year=b_year, birth_month=b_month, birth_day=b_day,
+            birth_notes=b_notes,
+            death_year=d_year, death_month=d_month, death_day=d_day,
+            death_notes=d_notes,
+            birth_city=birth_city, extra_info=extra_info
         )
         db.session.add(spouse)
         db.session.flush()
@@ -451,10 +480,85 @@ def add_step_parent(person_id):
     available_parents = [p for p in (person.father, person.mother) if p]
     return render_template('add_step_parent.html', tree=tree, person=person, available_parents=available_parents)
 
+@rel_bp.route('/person/<int:person_id>/add_godparent', methods=['GET', 'POST'])
+@login_required
+def add_godparent(person_id):
+    tree = get_active_tree()
+    if not tree:
+        abort(403)
+    person = Person.query.get_or_404(person_id)
+    if person.tree_id != tree.id:
+        abort(403)
+
+    if request.method == 'POST':
+        surname = request.form.get('surname', '').strip()
+        name = request.form.get('name', '').strip()
+        if not surname or not name:
+            flash('Фамилия и Имя обязательны', 'danger')
+            return render_template('add_godparent.html', tree=tree, person=person)
+        patronymic = request.form.get('patronymic', '').strip() or None
+        gender = request.form.get('gender')
+        if gender not in ('M', 'F'):
+            flash('Некорректный пол', 'danger')
+            return render_template('add_godparent.html', tree=tree, person=person)
+        birth_str = request.form.get('birth_date_input', '').strip()
+        death_str = request.form.get('death_date_input', '').strip()
+        b_notes = request.form.get('birth_notes', '').strip() or None
+        d_notes = request.form.get('death_notes', '').strip() or None
+        is_dead = request.form.get('is_dead') == '1'
+        if not is_dead:
+            death_str = ''
+            d_notes = ''
+        b_year, b_month, b_day, b_notes_parsed = parse_date(birth_str)
+        if b_notes_parsed:
+            b_notes = (b_notes_parsed + '; ' + b_notes) if b_notes else b_notes_parsed
+        d_year, d_month, d_day, d_notes_parsed = parse_date(death_str)
+        if d_notes_parsed:
+            d_notes = (d_notes_parsed + '; ' + d_notes) if d_notes else d_notes_parsed
+        birth_city = request.form.get('birth_city', '').strip()
+        extra_info = request.form.get('extra_info', '').strip()
+
+        duplicates = find_duplicates(surname, name, patronymic, b_year, tree)
+        if duplicates['own'] or duplicates['others']:
+            return render_template('confirm_person.html', tree=tree,
+                                   surname=surname, name=name, patronymic=patronymic,
+                                   gender=gender,
+                                   birth_year=b_year, birth_month=b_month, birth_day=b_day,
+                                   birth_notes=b_notes,
+                                   death_year=d_year, death_month=d_month, death_day=d_day,
+                                   death_notes=d_notes,
+                                   birth_city=birth_city, extra_info=extra_info,
+                                   duplicates=duplicates,
+                                   person_type='godparent', parent_id=person.id,
+                                   second_parent_id=None, marriage_date=None)
+
+        godparent = Person(
+            tree_id=tree.id,
+            surname=surname, name=name, patronymic=patronymic, gender=gender,
+            birth_year=b_year, birth_month=b_month, birth_day=b_day,
+            birth_notes=b_notes,
+            death_year=d_year, death_month=d_month, death_day=d_day,
+            death_notes=d_notes,
+            birth_city=birth_city, extra_info=extra_info
+        )
+        db.session.add(godparent)
+        db.session.flush()
+        pid1, pid2 = sorted([person.id, godparent.id])
+        link = SiblingLink(person1_id=pid1, person2_id=pid2, tree_id=tree.id,
+                           relation_type='godparent')
+        db.session.add(link)
+        db.session.commit()
+        flash('Крёстный/крёстная добавлен(а)', 'success')
+        return redirect(url_for('person.person_detail', person_id=person.id))
+
+    return render_template('add_godparent.html', tree=tree, person=person)
+
 @rel_bp.route('/person/<int:person_id>/remove_parent/<int:parent_id>', methods=['POST'])
 @login_required
 def remove_parent(person_id, parent_id):
-    tree = current_user.tree
+    tree = get_active_tree()
+    if not tree:
+        abort(403)
     person = Person.query.get_or_404(person_id)
     parent = Person.query.get_or_404(parent_id)
     if person.tree_id != tree.id or parent.tree_id != tree.id:
@@ -486,7 +590,9 @@ def remove_parent(person_id, parent_id):
 @rel_bp.route('/person/<int:person_id>/remove_sibling/<int:sibling_id>', methods=['POST'])
 @login_required
 def remove_sibling(person_id, sibling_id):
-    tree = current_user.tree
+    tree = get_active_tree()
+    if not tree:
+        abort(403)
     person = Person.query.get_or_404(person_id)
     sibling = Person.query.get_or_404(sibling_id)
     if person.tree_id != tree.id or sibling.tree_id != tree.id:

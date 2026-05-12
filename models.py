@@ -1,6 +1,6 @@
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin
-from datetime import date
+from datetime import date, datetime
 
 db = SQLAlchemy()
 
@@ -14,13 +14,15 @@ class User(UserMixin, db.Model):
     patronymic = db.Column(db.String(100), nullable=True)
     maiden_name = db.Column(db.String(100), nullable=True)
     gender = db.Column(db.String(1), nullable=True)
-    tree = db.relationship('Tree', uselist=False, backref='owner')
+    tree_permissions = db.relationship('TreePermission', backref='user', lazy=True)
 
 class Tree(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(200), nullable=False)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, unique=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)   # unique удалён
     persons = db.relationship('Person', backref='tree', lazy=True)
+    permissions = db.relationship('TreePermission', backref='tree', lazy=True)
+    invites = db.relationship('Invite', backref='tree', lazy=True)
 
     def root_persons(self):
         return Person.query.filter_by(tree_id=self.id)\
@@ -181,3 +183,18 @@ class SiblingLink(db.Model):
     __table_args__ = (
         db.UniqueConstraint('person1_id', 'person2_id', name='unique_sibling_pair'),
     )
+
+class TreePermission(db.Model):
+    __tablename__ = 'tree_permission'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    tree_id = db.Column(db.Integer, db.ForeignKey('tree.id'), nullable=False)
+    role = db.Column(db.String(20), default='editor')
+
+class Invite(db.Model):
+    __tablename__ = 'invite'
+    id = db.Column(db.Integer, primary_key=True)
+    token = db.Column(db.String(100), unique=True, nullable=False)
+    tree_id = db.Column(db.Integer, db.ForeignKey('tree.id'), nullable=False)
+    role = db.Column(db.String(20), default='editor')
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)

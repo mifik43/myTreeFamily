@@ -1,11 +1,12 @@
-from flask import Blueprint, render_template, redirect, url_for, request
+from flask import Blueprint, render_template, redirect, url_for, request, abort, session, flash
 from flask_login import login_required, current_user
-from models import db, Tree, Person, Marriage, SiblingLink
+from models import db, Tree, Person, Marriage, SiblingLink, Invite, TreePermission
+from helpers import get_active_tree
+import secrets
 
 main_bp = Blueprint('main', __name__)
 
 def masculine_surname(s):
-    """Приводит женскую фамилию к мужской форме (убирает окончание -а/-я)."""
     if s.endswith(('а', 'я')):
         return s[:-1]
     return s
@@ -19,18 +20,16 @@ def index():
 @main_bp.route('/tree')
 @login_required
 def tree_detail():
-    tree = current_user.tree
+    tree = get_active_tree()
     if not tree:
-        tree = Tree(name=f'Род {current_user.surname}', user_id=current_user.id)
-        db.session.add(tree)
-        db.session.commit()
+        flash('У вас нет доступа ни к одному дереву.', 'danger')
+        return redirect(url_for('auth.login'))
+
     view = request.args.get('view', 'table')
     surname_filter = request.args.get('surname', '').strip()
 
     persons_query = Person.query.filter_by(tree_id=tree.id).order_by(Person.surname, Person.name)
     all_persons = persons_query.all()
-
-    # Уникальные фамилии в мужской форме
     surnames = sorted(list({masculine_surname(p.surname) for p in all_persons}))
 
     if surname_filter and surname_filter != 'Все':
@@ -38,7 +37,6 @@ def tree_detail():
     else:
         persons = all_persons
 
-    # Поиск по ФИО (опционально)
     search_query = request.args.get('search', '').strip()
     ye = request.args.get('ye', '0') == '1'
     if search_query:
@@ -72,7 +70,6 @@ def tree_detail():
                 edges.append({'from': p.father_id, 'to': p.id, 'arrows': 'to', 'label': 'отец'})
             if p.mother_id and p.mother_id in valid_ids:
                 edges.append({'from': p.mother_id, 'to': p.id, 'arrows': 'to', 'label': 'мать'})
-        # Браки
         marriages = Marriage.query.join(Person, Person.id == Marriage.husband_id)\
                                  .filter(Person.tree_id == tree.id).all()
         for m in marriages:
@@ -87,7 +84,6 @@ def tree_detail():
                     'label': 'брак' + (f' ({date_label})' if date_label else ''),
                     'color': {'color': 'red'}
                 })
-        # Явные связи брат/сестра и крёстные
         sibling_links = SiblingLink.query.filter_by(tree_id=tree.id).all()
         for link in sibling_links:
             if link.person1_id in valid_ids and link.person2_id in valid_ids:
@@ -103,7 +99,7 @@ def tree_detail():
         return render_template('tree_detail.html', tree=tree, persons=persons,
                                view='tree', nodes=nodes, edges=edges,
                                surnames=surnames, current_surname=surname_filter,
-                               search_query=search_query, ye=ye)
+                               search_query=search_query, ye=ye, active_tree=tree)
 
     if view == 'list':
         root_persons = tree.root_persons()
@@ -112,7 +108,7 @@ def tree_detail():
         return render_template('tree_detail.html', tree=tree, persons=persons,
                                view='list', root_persons=root_persons,
                                surnames=surnames, current_surname=surname_filter,
-                               search_query=search_query, ye=ye)
+                               search_query=search_query, ye=ye, active_tree=tree)
 
     if view == 'tree_view':
         root_persons = tree.root_persons()
@@ -123,9 +119,26 @@ def tree_detail():
                                view='tree_view', root_persons=root_persons,
                                person_map=person_map, surnames=surnames,
                                current_surname=surname_filter,
-                               search_query=search_query, ye=ye)
+                               search_query=search_query, ye=ye, active_tree=tree)
 
-    # По умолчанию таблица
     return render_template('tree_detail.html', tree=tree, persons=persons,
-                           view='table', surnames=surnames, current_surname=surname_filter,
-                           search_query=search_query, ye=ye)
+                       view='table', surnames=surnames, current_surname=surname_filter,
+                       search_query=search_query, ye=ye, active_tree=tree)
+
+@main_bp.route('/invite/generate')
+@login_required
+def generate_invite():
+    tree = get_active_tree()
+    if not tree:
+        flash('Дерево не найдено', 'danger')
+        return redirect(url_for('main.tree_detail'))
+    if tree.user_id != current_user.id:
+        flash('Только владелец может приглашать', 'danger')
+        return redirect(url_for('main.tree_detail'))
+    token = secrets.token_urlsafe(16)
+    invite = Invite(token=token, tree_id=tree.id, role='editor')
+    db.session.add(invite)
+    db.session.commit()
+    invite_link = url_for('auth.register', invite=token, _external=True)
+    flash(f'Ссылка для приглашения: {invite_link}', 'success')
+    return redirect(url_for('main.tree_detail'))

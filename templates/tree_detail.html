@@ -60,6 +60,9 @@
 <div class="mb-3">
     <a href="{{ url_for('person.add_person') }}" class="btn btn-success">Добавить персону</a>
     <a href="{{ url_for('relationships.add_marriage') }}" class="btn btn-outline-primary">Добавить брак</a>
+    {% if current_user.is_authenticated and active_tree and active_tree.user_id == current_user.id %}
+    <a href="{{ url_for('main.generate_invite') }}" class="btn btn-sm btn-outline-info">Пригласить редактора</a>
+{% endif %}
 </div>
 
 {% if view == 'table' %}

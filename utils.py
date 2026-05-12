@@ -1,4 +1,6 @@
 from models import Person, Tree, db
+from datetime import datetime
+import re
 
 def find_duplicates(surname, name, patronymic, birth_year, tree, maiden_name=None):
     if not surname or not name:
@@ -25,8 +27,6 @@ def find_duplicates(surname, name, patronymic, birth_year, tree, maiden_name=Non
     return {'own': own, 'others': others}
 
 def parse_date(date_str):
-    """Парсит строку с датой и возвращает (year, month, day, notes)."""
-    from datetime import datetime
     if not date_str:
         return None, None, None, None
     date_str = date_str.strip()
@@ -36,7 +36,6 @@ def parse_date(date_str):
             return dt.year, dt.month, dt.day, None
         except ValueError:
             continue
-    import re
     m = re.match(r'^(\d{4})$', date_str)
     if m:
         return int(m.group(1)), None, None, None

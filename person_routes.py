@@ -1,9 +1,11 @@
-from flask import Blueprint, render_template, redirect, url_for, request, flash, abort
+import os
+from datetime import datetime
+from werkzeug.utils import secure_filename
+from flask import Blueprint, render_template, redirect, url_for, request, flash, abort, session
 from flask_login import login_required, current_user
 from models import db, Person, Marriage
-from utils import find_duplicates
-from werkzeug.utils import secure_filename
-import os
+from utils import find_duplicates, parse_date
+from helpers import get_active_tree
 
 person_bp = Blueprint('person', __name__)
 
@@ -16,7 +18,11 @@ def allowed_file(filename):
 @person_bp.route('/person/add', methods=['GET', 'POST'])
 @login_required
 def add_person():
-    tree = current_user.tree
+    tree = get_active_tree()
+    if not tree:
+        flash('Нет активного дерева', 'danger')
+        return redirect(url_for('main.tree_detail'))
+
     if request.method == 'POST':
         surname = request.form.get('surname', '').strip()
         name = request.form.get('name', '').strip()
@@ -28,71 +34,67 @@ def add_person():
         if gender not in ('M', 'F'):
             flash('Некорректный пол', 'danger')
             return render_template('add_person.html', tree=tree)
+        maiden_name = request.form.get('maiden_name', '').strip() or None
 
-        b_year = request.form.get('birth_year', type=int)
-        b_month = request.form.get('birth_month', type=int)
-        b_day = request.form.get('birth_day', type=int)
+        birth_str = request.form.get('birth_date_input', '').strip()
+        death_str = request.form.get('death_date_input', '').strip()
         b_notes = request.form.get('birth_notes', '').strip() or None
+        d_notes = request.form.get('death_notes', '').strip() or None
+        is_dead = request.form.get('is_dead') == '1'
+        if not is_dead:
+            death_str = ''
+            d_notes = ''
+
+        b_year, b_month, b_day, b_notes_parsed = parse_date(birth_str)
+        if b_notes_parsed:
+            b_notes = (b_notes_parsed + '; ' + b_notes) if b_notes else b_notes_parsed
+        d_year, d_month, d_day, d_notes_parsed = parse_date(death_str)
+        if d_notes_parsed:
+            d_notes = (d_notes_parsed + '; ' + d_notes) if d_notes else d_notes_parsed
+
         birth_city = request.form.get('birth_city', '').strip()
         extra_info = request.form.get('extra_info', '').strip()
         social_ok = request.form.get('social_ok', '').strip()
         social_vk = request.form.get('social_vk', '').strip()
         social_telegram = request.form.get('social_telegram', '').strip()
         social_mail = request.form.get('social_mail', '').strip()
-        maiden_name = request.form.get('maiden_name', '').strip() or None
-        # Обработка даты смерти с галочкой
-        is_dead = request.form.get('is_dead') == '1'
-        death_str = ''
-        d_notes = ''
-        if is_dead:
-            death_str = request.form.get('death_date_input', '').strip()
-            d_notes = request.form.get('death_notes', '').strip() or None
-        d_year = request.form.get('death_year', type=int)
-        d_month = request.form.get('death_month', type=int)
-        d_day = request.form.get('death_day', type=int)
-        d_notes = request.form.get('death_notes', '').strip() or None
 
-        city = request.form.get('city', '').strip()
-
-        duplicates = find_duplicates(surname, name, patronymic, b_year, tree)
-        if duplicates['own'] or duplicates['others']:
-            return render_template('confirm_person.html', tree=tree,
-                                   surname=surname, name=name, patronymic=patronymic,
-                                   gender=gender,
-                                   birth_year=b_year, birth_month=b_month, birth_day=b_day,
-                                   birth_notes=b_notes,
-                                   death_year=d_year, death_month=d_month, death_day=d_day,
-                                   death_notes=d_notes, city=city,
-                                   duplicates=duplicates,
-                                   person_type=None, parent_id=None,
-                                   second_parent_id=None, marriage_date=None)
-        # Фотография
         photo_filename = None
         if 'photo' in request.files:
             file = request.files['photo']
             if file and file.filename != '' and allowed_file(file.filename):
                 filename = secure_filename(file.filename)
-                # генерируем уникальное имя
                 base, ext = os.path.splitext(filename)
                 filename = f"{base}_{datetime.now().strftime('%Y%m%d%H%M%S')}{ext}"
                 file.save(os.path.join(UPLOAD_FOLDER, filename))
                 photo_filename = filename
 
+        duplicates = find_duplicates(surname, name, patronymic, b_year, tree, maiden_name)
+        if duplicates['own'] or duplicates['others']:
+            return render_template('confirm_person.html', tree=tree,
+                                   surname=surname, name=name, patronymic=patronymic,
+                                   gender=gender, maiden_name=maiden_name,
+                                   birth_year=b_year, birth_month=b_month, birth_day=b_day,
+                                   birth_notes=b_notes,
+                                   death_year=d_year, death_month=d_month, death_day=d_day,
+                                   death_notes=d_notes,
+                                   birth_city=birth_city, extra_info=extra_info,
+                                   duplicates=duplicates,
+                                   person_type=None, parent_id=None,
+                                   second_parent_id=None, marriage_date=None)
+
         person = Person(
             tree_id=tree.id,
             surname=surname, name=name, patronymic=patronymic, gender=gender,
+            maiden_name=maiden_name,
             birth_year=b_year, birth_month=b_month, birth_day=b_day,
             birth_notes=b_notes,
             death_year=d_year, death_month=d_month, death_day=d_day,
             death_notes=d_notes,
-            city=city,
-            birth_city=birth_city,
-            extra_info=extra_info,
+            birth_city=birth_city, extra_info=extra_info,
             photo=photo_filename,
-            social_ok=social_ok,
-            social_vk=social_vk,
-            social_telegram=social_telegram,
-            social_mail=social_mail
+            social_ok=social_ok, social_vk=social_vk,
+            social_telegram=social_telegram, social_mail=social_mail
         )
         db.session.add(person)
         db.session.commit()
@@ -104,7 +106,9 @@ def add_person():
 @person_bp.route('/person/<int:person_id>')
 @login_required
 def person_detail(person_id):
-    tree = current_user.tree
+    tree = get_active_tree()
+    if not tree:
+        abort(403)
     person = Person.query.get_or_404(person_id)
     if person.tree_id != tree.id:
         abort(403)
@@ -118,7 +122,9 @@ def person_detail(person_id):
 @person_bp.route('/person/<int:person_id>/edit', methods=['GET', 'POST'])
 @login_required
 def edit_person(person_id):
-    tree = current_user.tree
+    tree = get_active_tree()
+    if not tree:
+        abort(403)
     person = Person.query.get_or_404(person_id)
     if person.tree_id != tree.id:
         abort(403)
@@ -137,19 +143,50 @@ def edit_person(person_id):
             flash('Некорректный пол', 'danger')
             return render_template('add_person.html', tree=tree, person=person, edit=True)
         person.gender = gender
-
-        person.birth_year = request.form.get('birth_year', type=int)
-        person.birth_month = request.form.get('birth_month', type=int)
-        person.birth_day = request.form.get('birth_day', type=int)
-        person.birth_notes = request.form.get('birth_notes', '').strip() or None
-
-        person.death_year = request.form.get('death_year', type=int)
-        person.death_month = request.form.get('death_month', type=int)
-        person.death_day = request.form.get('death_day', type=int)
-        person.death_notes = request.form.get('death_notes', '').strip() or None
-
-        person.city = request.form.get('city', '').strip()
         person.maiden_name = request.form.get('maiden_name', '').strip() or None
+
+        birth_str = request.form.get('birth_date_input', '').strip()
+        death_str = request.form.get('death_date_input', '').strip()
+        b_notes = request.form.get('birth_notes', '').strip() or None
+        d_notes = request.form.get('death_notes', '').strip() or None
+        is_dead = request.form.get('is_dead') == '1'
+        if not is_dead:
+            death_str = ''
+            d_notes = ''
+
+        b_year, b_month, b_day, b_notes_parsed = parse_date(birth_str)
+        if b_notes_parsed:
+            b_notes = (b_notes_parsed + '; ' + b_notes) if b_notes else b_notes_parsed
+        d_year, d_month, d_day, d_notes_parsed = parse_date(death_str)
+        if d_notes_parsed:
+            d_notes = (d_notes_parsed + '; ' + d_notes) if d_notes else d_notes_parsed
+
+        person.birth_year = b_year
+        person.birth_month = b_month
+        person.birth_day = b_day
+        person.birth_notes = b_notes
+        person.death_year = d_year
+        person.death_month = d_month
+        person.death_day = d_day
+        person.death_notes = d_notes
+
+        person.birth_city = request.form.get('birth_city', '').strip()
+        person.extra_info = request.form.get('extra_info', '').strip()
+
+        if 'photo' in request.files:
+            file = request.files['photo']
+            if file and file.filename != '' and allowed_file(file.filename):
+                filename = secure_filename(file.filename)
+                base, ext = os.path.splitext(filename)
+                filename = f"{base}_{datetime.now().strftime('%Y%m%d%H%M%S')}{ext}"
+                file.save(os.path.join(UPLOAD_FOLDER, filename))
+                person.photo = filename
+
+        person.social_ok = request.form.get('social_ok', '').strip()
+        person.social_vk = request.form.get('social_vk', '').strip()
+        person.social_telegram = request.form.get('social_telegram', '').strip()
+        person.social_mail = request.form.get('social_mail', '').strip()
+
         db.session.commit()
         flash('Данные обновлены', 'success')
         return redirect(url_for('person.person_detail', person_id=person.id))
@@ -160,7 +197,9 @@ def edit_person(person_id):
 @person_bp.route('/person/<int:person_id>/delete', methods=['POST'])
 @login_required
 def delete_person(person_id):
-    tree = current_user.tree
+    tree = get_active_tree()
+    if not tree:
+        abort(403)
     person = Person.query.get_or_404(person_id)
     if person.tree_id != tree.id:
         abort(403)

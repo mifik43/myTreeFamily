@@ -1,6 +1,9 @@
 {% extends "base.html" %}
 {% block content %}
 <h1>Регистрация</h1>
+{% if invite_token %}
+    <p>Вы присоединяетесь к дереву «{{ invite_tree }}» как редактор. Заполните логин и пароль (ФИО необязательно).</p>
+{% endif %}
 <form method="POST">
     <div class="row">
         <div class="col-md-6 mb-3">
@@ -14,12 +17,12 @@
     </div>
     <div class="row">
         <div class="col-md-4 mb-3">
-            <label>Фамилия *</label>
-            <input type="text" name="surname" class="form-control" required>
+            <label>Фамилия</label>
+            <input type="text" name="surname" class="form-control" {% if not invite_token %}required{% endif %}>
         </div>
         <div class="col-md-4 mb-3">
-            <label>Имя *</label>
-            <input type="text" name="name" class="form-control" required>
+            <label>Имя</label>
+            <input type="text" name="name" class="form-control" {% if not invite_token %}required{% endif %}>
         </div>
         <div class="col-md-4 mb-3">
             <label>Отчество</label>
@@ -28,8 +31,8 @@
     </div>
     <div class="row">
         <div class="col-md-4 mb-3">
-            <label>Пол *</label>
-            <select name="gender" id="genderSelect" class="form-select" required>
+            <label>Пол</label>
+            <select name="gender" id="genderSelect" class="form-select">
                 <option value="M">Мужской</option>
                 <option value="F">Женский</option>
             </select>

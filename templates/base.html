@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ru" data-bs-theme="light">
+<html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
@@ -13,56 +13,87 @@
     <meta name="apple-mobile-web-app-title" content="Семейное древо">
     <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/icon-192x192.png') }}">
 
-    <!-- Bootstrap 5.3 (поддерживает тёмную тему через data-bs-theme) -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-
-    <!-- Дополнительные стили для тонкой настройки темы -->
     <style>
-        :root {
-            --tree-card-bg: #f8f9fa;
-            --tree-card-border: #ccc;
-            --tree-card-hover: #e9ecef;
+        /* Адаптивные улучшения */
+        @media (max-width: 768px) {
+            .table-responsive-stack {
+                display: block;
+            }
+            .table-responsive-stack thead {
+                display: none;
+            }
+            .table-responsive-stack tbody tr {
+                display: block;
+                margin-bottom: 1rem;
+                border: 1px solid #dee2e6;
+                border-radius: 8px;
+                padding: 10px;
+                background: #fff;
+            }
+            .table-responsive-stack td {
+                display: block;
+                border: none;
+                padding: 4px 0;
+            }
+            .table-responsive-stack td::before {
+                content: attr(data-label);
+                font-weight: bold;
+                display: inline-block;
+                width: 120px;
+            }
         }
-        [data-bs-theme="dark"] {
-            --tree-card-bg: #343a40;
-            --tree-card-border: #495057;
-            --tree-card-hover: #495057;
-        }
-        .tree-card {
-            background: var(--tree-card-bg) !important;
-            border-color: var(--tree-card-border) !important;
-        }
-        .tree-card:hover {
-            background: var(--tree-card-hover) !important;
-        }
-        /* плавный переход */
-        body, .navbar, .card, .table, .list-group-item, .btn {
-            transition: background-color 0.3s, color 0.3s, border-color 0.3s;
+        /* Кнопка Поделиться */
+        #share-install-btn {
+            display: none; /* показывается только в поддерживаемых браузерах */
         }
     </style>
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-        <div class="container">
-            <a class="navbar-brand" href="{{ url_for('main.tree_detail') }}">Семейное древо</a>
-            <div class="navbar-nav ms-auto">
+    <!-- Боковое меню (offcanvas) -->
+    <div class="offcanvas offcanvas-start" tabindex="-1" id="sidebarMenu" aria-labelledby="sidebarMenuLabel">
+        <div class="offcanvas-header">
+            <h5 class="offcanvas-title" id="sidebarMenuLabel">Меню</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+        </div>
+        <div class="offcanvas-body">
+            <ul class="navbar-nav">
                 {% if current_user.is_authenticated %}
-                    <a class="nav-link" href="{{ url_for('main.tree_detail') }}">Моё дерево</a>
-                    <a class="nav-link" href="{{ url_for('auth.profile') }}">Профиль</a>
-                    <span class="navbar-text me-3">{{ current_user.username }}</span>
-                    <a class="nav-link" href="{{ url_for('auth.logout') }}">Выйти</a>
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('main.tree_detail') }}">Моё дерево</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('auth.profile') }}">Профиль</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('auth.logout') }}">Выйти</a></li>
                 {% else %}
-                    <a class="nav-link" href="{{ url_for('auth.login') }}">Войти</a>
-                    <a class="nav-link" href="{{ url_for('auth.register') }}">Регистрация</a>
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('auth.login') }}">Войти</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('auth.register') }}">Регистрация</a></li>
                 {% endif %}
-                <!-- Переключатель темы -->
-                <button id="theme-toggle" class="btn btn-sm btn-outline-light ms-2" title="Переключить тему">
-                    🌙
-                </button>
+            </ul>
+            <hr>
+            <!-- Кнопка "Поделиться" для установки PWA -->
+            <button class="btn btn-outline-primary w-100" id="share-install-btn" style="display:none;">
+                📲 Установить приложение
+            </button>
+        </div>
+    </div>
+
+    <!-- Верхняя навигационная панель -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <!-- Кнопка для открытия бокового меню (видна всегда, но особенно удобна на мобильных) -->
+            <button class="btn btn-dark me-2" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebarMenu" aria-controls="sidebarMenu">
+                ☰
+            </button>
+            <a class="navbar-brand" href="{{ url_for('main.tree_detail') }}">Семейное древо</a>
+            <div class="d-flex ms-auto">
+                {% if current_user.is_authenticated %}
+                    <span class="navbar-text me-3 d-none d-lg-inline">{{ current_user.username }}</span>
+                {% endif %}
+                <!-- Кнопка Поделиться (для PWA) также в баре -->
+                <button class="btn btn-outline-light btn-sm me-2 d-none d-md-inline" id="share-install-btn-bar" style="display:none;" title="Установить приложение">📲</button>
             </div>
         </div>
     </nav>
-    <div class="container mt-4">
+
+    <div class="container-fluid mt-4">
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 {% for cat, msg in messages %}
@@ -77,49 +108,41 @@
     </div>
     {% block scripts %}{% endblock %}
 
-    <!-- Скрипт переключения темы -->
+    <!-- Bootstrap JS и инициализация offcanvas -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        (function() {
-            const html = document.documentElement;
-            const toggleBtn = document.getElementById('theme-toggle');
-            const storedTheme = localStorage.getItem('theme');
-            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        // Показываем кнопку "Поделиться/Установить", если браузер поддерживает PWA и приложение ещё не установлено
+        window.addEventListener('beforeinstallprompt', function(e) {
+            e.preventDefault();
+            window.deferredPrompt = e;
+            document.getElementById('share-install-btn').style.display = 'block';
+            document.getElementById('share-install-btn-bar').style.display = 'inline-block';
+        });
 
-            // Установить тему при загрузке
-            function setTheme(theme) {
-                if (theme === 'dark') {
-                    html.setAttribute('data-bs-theme', 'dark');
-                    toggleBtn.innerHTML = '☀️';
-                    document.querySelector('meta[name="theme-color"]').setAttribute('content', '#212529');
-                } else {
-                    html.setAttribute('data-bs-theme', 'light');
-                    toggleBtn.innerHTML = '🌙';
-                    document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff');
-                }
+        document.getElementById('share-install-btn')?.addEventListener('click', function() {
+            if (window.deferredPrompt) {
+                window.deferredPrompt.prompt();
+                window.deferredPrompt.userChoice.then(function(choiceResult) {
+                    if (choiceResult.outcome === 'accepted') {
+                        console.log('Пользователь установил приложение');
+                    }
+                    window.deferredPrompt = null;
+                });
             }
+        });
+        document.getElementById('share-install-btn-bar')?.addEventListener('click', function() {
+            if (window.deferredPrompt) {
+                window.deferredPrompt.prompt();
+                window.deferredPrompt.userChoice.then(function(choiceResult) {
+                    if (choiceResult.outcome === 'accepted') {
+                        console.log('Пользователь установил приложение');
+                    }
+                    window.deferredPrompt = null;
+                });
+            }
+        });
 
-            // Определяем тему: сохранённая > системная > светлая
-            let currentTheme = storedTheme || (prefersDark ? 'dark' : 'light');
-            setTheme(currentTheme);
-
-            // Обработчик клика
-            toggleBtn.addEventListener('click', function() {
-                currentTheme = html.getAttribute('data-bs-theme') === 'dark' ? 'light' : 'dark';
-                setTheme(currentTheme);
-                localStorage.setItem('theme', currentTheme);
-            });
-
-            // Слушаем изменения системной темы (если нет сохранённой)
-            window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function(e) {
-                if (!localStorage.getItem('theme')) {
-                    setTheme(e.matches ? 'dark' : 'light');
-                }
-            });
-        })();
-    </script>
-
-    <!-- Регистрация Service Worker (PWA) -->
-    <script>
+        // Регистрация Service Worker (уже была, но можно оставить)
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', function() {
                 navigator.serviceWorker.register("{{ url_for('static', filename='service-worker.js') }}")
@@ -131,6 +154,7 @@
                     });
             });
         }
+    src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js">
     </script>
 </body>
 </html>

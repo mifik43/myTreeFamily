@@ -210,3 +210,78 @@ def delete_person(person_id):
     db.session.commit()
     flash('Персона удалена', 'success')
     return redirect(url_for('main.tree_detail'))
+
+@person_bp.route('/person/merge', methods=['POST'])
+@login_required
+def merge_persons():
+    tree = get_active_tree()
+    if not tree:
+        abort(403)
+
+    primary_id = request.form.get('primary_id', type=int)
+    secondary_id = request.form.get('secondary_id', type=int)
+    if not primary_id or not secondary_id:
+        flash('Не указаны персоны для объединения', 'danger')
+        return redirect(url_for('main.tree_detail'))
+
+    primary = Person.query.get_or_404(primary_id)
+    secondary = Person.query.get_or_404(secondary_id)
+    if primary.tree_id != tree.id or secondary.tree_id != tree.id:
+        abort(403)
+
+    # Перенос родителей у детей
+    for child in Person.query.filter_by(father_id=secondary.id).all():
+        child.father_id = primary.id
+    for child in Person.query.filter_by(mother_id=secondary.id).all():
+        child.mother_id = primary.id
+
+    # Перенос браков
+    for m in secondary.marriages_as_husband:
+        existing = Marriage.query.filter_by(husband_id=primary.id, wife_id=m.wife_id).first()
+        if not existing:
+            m.husband_id = primary.id
+        else:
+            db.session.delete(m)
+    for m in secondary.marriages_as_wife:
+        existing = Marriage.query.filter_by(husband_id=m.husband_id, wife_id=primary.id).first()
+        if not existing:
+            m.wife_id = primary.id
+        else:
+            db.session.delete(m)
+
+    # Перенос явных sibling‑связей
+    for link in secondary.sibling_links_1:
+        other_id = link.person2_id
+        if other_id != primary.id:
+            pid1, pid2 = sorted([primary.id, other_id])
+            if not SiblingLink.query.filter_by(
+                person1_id=pid1, person2_id=pid2, tree_id=tree.id
+            ).first():
+                new_link = SiblingLink(
+                    person1_id=pid1, person2_id=pid2,
+                    tree_id=tree.id, relation_type=link.relation_type
+                )
+                db.session.add(new_link)
+        db.session.delete(link)
+    for link in secondary.sibling_links_2:
+        other_id = link.person1_id
+        if other_id != primary.id:
+            pid1, pid2 = sorted([primary.id, other_id])
+            if not SiblingLink.query.filter_by(
+                person1_id=pid1, person2_id=pid2, tree_id=tree.id
+            ).first():
+                new_link = SiblingLink(
+                    person1_id=pid1, person2_id=pid2,
+                    tree_id=tree.id, relation_type=link.relation_type
+                )
+                db.session.add(new_link)
+        db.session.delete(link)
+
+    # Фотография
+    if not primary.photo and secondary.photo:
+        primary.photo = secondary.photo
+
+    db.session.delete(secondary)
+    db.session.commit()
+    flash(f'Персоны объединены в {primary.full_name}', 'success')
+    return redirect(url_for('person.person_detail', person_id=primary.id))

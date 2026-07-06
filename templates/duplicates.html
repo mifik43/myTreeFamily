@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Возможные дубликаты в дереве «{{ tree.name }}»</h1>
+{% if duplicates %}
+    <p>Найдено групп: {{ duplicates|length }}</p>
+    {% for group in duplicates %}
+        <div class="card mb-3">
+            <div class="card-header">
+                <strong>{{ group[0].name }} {{ group[0].patronymic or '' }}</strong> 
+                (год рождения: {{ group[0].birth_year or 'неизвестен' }})
+            </div>
+            <ul class="list-group list-group-flush">
+                {% for p in group %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <a href="{{ url_for('person.person_detail', person_id=p.id) }}">{{ p.full_name }}</a>
+                        <span>{{ p.birth_display }}</span>
+                        {% if not loop.first %}
+                            <form method="POST" action="{{ url_for('person.merge_persons') }}"
+                                  onsubmit="return confirm('Объединить {{ group[0].full_name }} и {{ p.full_name }}?');">
+                                <input type="hidden" name="primary_id" value="{{ group[0].id }}">
+                                <input type="hidden" name="secondary_id" value="{{ p.id }}">
+                                <button type="submit" class="btn btn-sm btn-warning">Объединить с первым</button>
+                            </form>
+                        {% endif %}
+                    </li>
+                {% endfor %}
+            </ul>
+        </div>
+    {% endfor %}
+{% else %}
+    <p>Дубликатов не найдено.</p>
+{% endif %}
+<a href="{{ url_for('main.tree_detail') }}" class="btn btn-secondary">Назад к дереву</a>
+{% endblock %}

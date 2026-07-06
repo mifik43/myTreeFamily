@@ -31,6 +31,44 @@
             <input type="hidden" name="surname" value="{{ current_surname or '' }}">
             <div class="col-auto">
                 <input type="text" name="search" class="form-control form-control-sm" placeholder="Поиск ФИО" value="{{ search_query or '' }}">
+                <!-- Продвинутый поиск -->
+<div class="row mb-3">
+    <div class="col-auto">
+        <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#advancedSearch" aria-expanded="false" aria-controls="advancedSearch">
+            ⚙ Расширенный поиск
+        </button>
+    </div>
+</div>
+<div class="collapse mb-3" id="advancedSearch">
+    <div class="card card-body">
+        <form method="GET" action="{{ url_for('main.tree_detail') }}" class="row g-2">
+            <input type="hidden" name="view" value="{{ view }}">
+            <input type="hidden" name="surname" value="{{ current_surname or '' }}">
+            <input type="hidden" name="search" value="{{ search_query or '' }}">
+            <input type="hidden" name="ye" value="{{ '1' if ye else '' }}">
+            <div class="col-md-3">
+                <label class="form-label">Год рождения от</label>
+                <input type="number" name="birth_year_from" class="form-control form-control-sm" placeholder="1900" value="{{ birth_year_from or '' }}">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">до</label>
+                <input type="number" name="birth_year_to" class="form-control form-control-sm" placeholder="2000" value="{{ birth_year_to or '' }}">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Город рождения</label>
+                <input type="text" name="birth_city_search" class="form-control form-control-sm" placeholder="Москва" value="{{ birth_city_search or '' }}">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Доп. информация</label>
+                <input type="text" name="extra_info_search" class="form-control form-control-sm" placeholder="служил, работал" value="{{ extra_info_search or '' }}">
+            </div>
+            <div class="col-12 mt-2">
+                <button type="submit" class="btn btn-sm btn-primary">Применить</button>
+                <a href="{{ url_for('main.tree_detail', view=view, surname=current_surname) }}" class="btn btn-sm btn-secondary">Сбросить всё</a>
+            </div>
+        </form>
+    </div>
+</div>
             </div>
             <div class="col-auto">
                 <div class="form-check">
@@ -62,42 +100,47 @@
     <a href="{{ url_for('relationships.add_marriage') }}" class="btn btn-outline-primary">Добавить брак</a>
     {% if current_user.is_authenticated and active_tree and active_tree.user_id == current_user.id %}
     <a href="{{ url_for('main.generate_invite') }}" class="btn btn-sm btn-outline-info">Пригласить редактора</a>
+    {% if current_user.is_authenticated and active_tree and active_tree.user_id == current_user.id %}
+    <a href="{{ url_for('main.find_duplicates') }}" class="btn btn-sm btn-outline-warning">🔍 Дубликаты</a>
+{% endif %}
 {% endif %}
 </div>
 
 {% if view == 'table' %}
     {% if persons %}
-    <table class="table table-striped">
-        <thead>
-            <tr>
-                <th>Фамилия</th>
-                <th>Имя и Отчество</th>
-                <th>Дата рождения</th>
-                <th>Город</th>
-                <th></th>
-            </tr>
-        </thead>
-        <tbody>
-        {% for p in persons %}
-            <tr>
-                <td>{{ p.surname }}</td>
-                <td>
-                    <a href="{{ url_for('person.person_detail', person_id=p.id) }}">
-                        {{ p.name }} {{ p.patronymic or '' }}
-                    </a>
-                </td>
-                <td>{{ p.birth_display }}</td>
-                <td>{{ p.birth_city or '-' }}</td>
-                <td>
-                    <a href="{{ url_for('person.edit_person', person_id=p.id) }}" class="btn btn-sm btn-warning">Изм.</a>
-                    <form method="POST" action="{{ url_for('person.delete_person', person_id=p.id) }}" style="display:inline" onsubmit="return confirm('Удалить персону и все её связи?')">
-                        <button class="btn btn-sm btn-danger">Уд.</button>
-                    </form>
-                </td>
-            </tr>
-        {% endfor %}
-        </tbody>
-    </table>
+    <div class="table-responsive">
+        <table class="table table-striped table-responsive-stack">
+            <thead>
+                <tr>
+                    <th>Фамилия</th>
+                    <th>Имя и Отчество</th>
+                    <th>Дата рождения</th>
+                    <th>Город</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for p in persons %}
+                <tr>
+                    <td data-label="Фамилия">{{ p.surname }}</td>
+                    <td data-label="Имя">
+                        <a href="{{ url_for('person.person_detail', person_id=p.id) }}">
+                            {{ p.name }} {{ p.patronymic or '' }}
+                        </a>
+                    </td>
+                    <td data-label="Родился">{{ p.birth_display }}</td>
+                    <td data-label="Город">{{ p.birth_city or '-' }}</td>
+                    <td data-label="Действия">
+                        <a href="{{ url_for('person.edit_person', person_id=p.id) }}" class="btn btn-sm btn-warning">Изм.</a>
+                        <form method="POST" action="{{ url_for('person.delete_person', person_id=p.id) }}" style="display:inline" onsubmit="return confirm('Удалить персону и все её связи?')">
+                            <button class="btn btn-sm btn-danger">Уд.</button>
+                        </form>
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
     {% else %}
         <p>Ваше дерево пусто. Добавьте родственников, начиная с себя.</p>
     {% endif %}
@@ -132,6 +175,9 @@
         <div class="btn-group" role="group">
             <button type="button" class="btn btn-sm btn-outline-primary active" id="btn-compact">Компактный</button>
             <button type="button" class="btn btn-sm btn-outline-primary" id="btn-detailed">Детальный</button>
+            <div class="btn-group ms-2" role="group">
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="reset-positions" title="Сбросить ручное расположение">↺ Сброс позиций</button>
+            </div>
         </div>
         <div class="btn-group ms-2" role="group">
             <button type="button" class="btn btn-sm btn-outline-success active" id="btn-all">Все связи</button>
@@ -299,40 +345,80 @@
 <div id="custom-tooltip"></div>
 
 <script>
-    var nodes = new vis.DataSet({{ nodes|tojson }});
-    var edges = new vis.DataSet({{ edges|tojson }});
+var nodes = new vis.DataSet({{ nodes|tojson }});
+var edges = new vis.DataSet({{ edges|tojson }});
 
-    var container = document.getElementById('mynetwork');
-    var tooltip = document.getElementById('custom-tooltip');
-    var data = { nodes: nodes, edges: edges };
-    var options = {
-        physics: {
-            solver: 'forceAtlas2Based',
-            forceAtlas2Based: {
-                gravitationalConstant: -30,
-                centralGravity: 0.005,
-                springLength: 200,
-                springConstant: 0.18
-            },
-            maxVelocity: 146,
-            stabilization: { iterations: 1000 }
+var container = document.getElementById('mynetwork');
+var data = { nodes: nodes, edges: edges };
+var options = {
+    physics: {
+        solver: 'forceAtlas2Based',
+        forceAtlas2Based: {
+            gravitationalConstant: -30,
+            centralGravity: 0.005,
+            springLength: 200,
+            springConstant: 0.18
         },
-        nodes: {
-            shape: 'dot',
-            size: 30,
-            color: '#6baed6',
-            font: { size: 14, face: 'Arial' }
-        },
-        edges: {
-            font: { size: 10, align: 'middle' },
-            arrows: { to: { enabled: true, scaleFactor: 0.5 } }
-        },
-        interaction: {
-            hover: true,
-            tooltipDelay: 200
+        maxVelocity: 146,
+        stabilization: { iterations: 1000 }
+    },
+    nodes: {
+        shape: 'dot',
+        size: 30,
+        color: '#6baed6',
+        font: { size: 14, face: 'Arial' }
+    },
+    edges: {
+        font: { size: 10, align: 'middle' },
+        arrows: { to: { enabled: true, scaleFactor: 0.5 } }
+    },
+    interaction: {
+        hover: true,
+        tooltipDelay: 200
+    }
+};
+var network = new vis.Network(container, data, options);
+
+// --- Сохранение и загрузка позиций ---
+var treeId = {{ tree.id }};
+function loadPositions() {
+    var key = 'graphPositions_' + treeId;
+    var saved = localStorage.getItem(key);
+    if (saved) {
+        try {
+            var positions = JSON.parse(saved);
+            nodes.forEach(function(node) {
+                if (positions[node.id]) {
+                    nodes.update({id: node.id, x: positions[node.id].x, y: positions[node.id].y});
+                }
+            });
+        } catch(e) {}
+    }
+}
+function savePositions() {
+    var positions = {};
+    nodes.forEach(function(node) {
+        var pos = network.getPositions([node.id]);
+        if (pos && pos[node.id]) {
+            positions[node.id] = pos[node.id];
         }
-    };
-    var network = new vis.Network(container, data, options);
+    });
+    var key = 'graphPositions_' + treeId;
+    localStorage.setItem(key, JSON.stringify(positions));
+}
+setTimeout(loadPositions, 1000);
+network.on("dragEnd", function(params) {
+    if (params.nodes && params.nodes.length > 0) {
+        savePositions();
+    }
+});
+
+// Сброс позиций
+document.getElementById('reset-positions').addEventListener('click', function() {
+    var key = 'graphPositions_' + treeId;
+    localStorage.removeItem(key);
+    location.reload();
+});
 
     // --- Функция для кастомного тултипа ---
     network.on("hoverNode", function (params) {

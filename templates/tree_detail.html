@@ -276,7 +276,92 @@
 {% block scripts %}
 {% if view == 'tree' %}
 <script src="https://visjs.github.io/vis-network/standalone/umd/vis-network.min.js"></script>
+<style>
+    /* Стили для кастомного тултипа */
+    #custom-tooltip {
+        position: absolute;
+        display: none;
+        background: rgba(0,0,0,0.8);
+        color: white;
+        padding: 8px 12px;
+        border-radius: 6px;
+        font-size: 13px;
+        white-space: nowrap;
+        pointer-events: none;
+        z-index: 1000;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    }
+    #custom-tooltip .name {
+        font-weight: bold;
+        font-size: 14px;
+    }
+</style>
+<div id="custom-tooltip"></div>
+
 <script>
+    var nodes = new vis.DataSet({{ nodes|tojson }});
+    var edges = new vis.DataSet({{ edges|tojson }});
+
+    var container = document.getElementById('mynetwork');
+    var tooltip = document.getElementById('custom-tooltip');
+    var data = { nodes: nodes, edges: edges };
+    var options = {
+        physics: {
+            solver: 'forceAtlas2Based',
+            forceAtlas2Based: {
+                gravitationalConstant: -30,
+                centralGravity: 0.005,
+                springLength: 200,
+                springConstant: 0.18
+            },
+            maxVelocity: 146,
+            stabilization: { iterations: 1000 }
+        },
+        nodes: {
+            shape: 'dot',
+            size: 30,
+            color: '#6baed6',
+            font: { size: 14, face: 'Arial' }
+        },
+        edges: {
+            font: { size: 10, align: 'middle' },
+            arrows: { to: { enabled: true, scaleFactor: 0.5 } }
+        },
+        interaction: {
+            hover: true,
+            tooltipDelay: 200
+        }
+    };
+    var network = new vis.Network(container, data, options);
+
+    // --- Функция для кастомного тултипа ---
+    network.on("hoverNode", function (params) {
+        var nodeId = params.node;
+        var node = nodes.get(nodeId);
+        if (node) {
+            var canvasRect = container.getBoundingClientRect();
+            var domPoint = network.canvasToDOM({ x: params.event.center.x, y: params.event.center.y });
+
+            var info = '<div class="name">' + node.full_name + '</div>';
+            info += 'Родился: ' + (node.birth_date || '?') + '<br>';
+            if (node.death_date) {
+                info += 'Умер: ' + node.death_date + '<br>';
+            }
+            if (node.city) {
+                info += 'Город: ' + node.city + '<br>';
+            }
+            info += 'Пол: ' + (node.gender === 'M' ? 'мужской' : 'женский');
+
+            tooltip.innerHTML = info;
+            tooltip.style.display = 'block';
+            tooltip.style.left = domPoint.x + 15 + 'px';
+            tooltip.style.top = domPoint.y + 15 + 'px';
+        }
+    });
+
+    network.on("blurNode", function () {
+        tooltip.style.display = 'none';
+    });
     var nodes = new vis.DataSet({{ nodes|tojson }});
     var edges = new vis.DataSet({{ edges|tojson }});
 

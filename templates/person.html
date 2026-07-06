@@ -1,5 +1,43 @@
 {% extends "base.html" %}
 {% block content %}
+
+<!-- Хлебные крошки и быстрые кнопки навигации -->
+<div class="mb-3">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb mb-2">
+            {% if person.father %}
+                <li class="breadcrumb-item"><a href="{{ url_for('person.person_detail', person_id=person.father.id) }}">{{ person.father.full_name }}</a></li>
+            {% else %}
+                <li class="breadcrumb-item text-muted">неизвестен</li>
+            {% endif %}
+            {% if person.mother %}
+                <li class="breadcrumb-item"><a href="{{ url_for('person.person_detail', person_id=person.mother.id) }}">{{ person.mother.full_name }}</a></li>
+            {% else %}
+                <li class="breadcrumb-item text-muted">неизвестна</li>
+            {% endif %}
+            <li class="breadcrumb-item active" aria-current="page">{{ person.full_name }}</li>
+        </ol>
+    </nav>
+
+    <div class="btn-group" role="group">
+        {% if person.father %}
+            <a href="{{ url_for('person.person_detail', person_id=person.father.id) }}" class="btn btn-outline-secondary btn-sm" title="Перейти к отцу">⬆️ К отцу</a>
+        {% endif %}
+        {% if person.mother %}
+            <a href="{{ url_for('person.person_detail', person_id=person.mother.id) }}" class="btn btn-outline-secondary btn-sm" title="Перейти к матери">⬆️ К матери</a>
+        {% endif %}
+        {% if spouses %}
+            {% for sp in spouses %}
+                <a href="{{ url_for('person.person_detail', person_id=sp.id) }}" class="btn btn-outline-primary btn-sm" title="Перейти к супругу(е)">💑 {{ sp.full_name }}</a>
+            {% endfor %}
+        {% endif %}
+        {% if children %}
+            <a href="#children-section" class="btn btn-outline-success btn-sm" title="К детям">⬇️ Дети</a>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Основная информация о персоне -->
 <h1>{{ person.full_name }}</h1>
 <div class="card mb-4">
     <div class="row g-0">
@@ -25,7 +63,6 @@
                     <p><strong>Дополнительно:</strong> {{ person.extra_info }}</p>
                 {% endif %}
 
-                <!-- Соцсети -->
                 {% set socials = [
                     ('Одноклассники', person.social_ok),
                     ('ВКонтакте', person.social_vk),
@@ -47,7 +84,7 @@
     </div>
 </div>
 
-<!-- Биологические родители -->
+<!-- Родители (биологические) -->
 <p><strong>Родители:</strong></p>
 {% if parents %}
     <ul class="list-group list-group-flush mb-2">
@@ -104,17 +141,19 @@
 {% endif %}
 <a href="{{ url_for('relationships.add_spouse', person_id=person.id) }}" class="btn btn-sm btn-outline-primary mb-3">Добавить супруга(у)</a>
 
-<!-- Дети -->
-<h3>Дети</h3>
-{% if children %}
-    <ul>
-    {% for child in children %}
-        <li><a href="{{ url_for('person.person_detail', person_id=child.id) }}">{{ child.full_name }}</a></li>
-    {% endfor %}
-    </ul>
-{% else %}
-    <p>Нет детей</p>
-{% endif %}
+<!-- Дети (с якорем для быстрой прокрутки) -->
+<div id="children-section">
+    <h3>Дети</h3>
+    {% if children %}
+        <ul>
+        {% for child in children %}
+            <li><a href="{{ url_for('person.person_detail', person_id=child.id) }}">{{ child.full_name }}</a></li>
+        {% endfor %}
+        </ul>
+    {% else %}
+        <p>Нет детей</p>
+    {% endif %}
+</div>
 <a href="{{ url_for('relationships.add_child', person_id=person.id) }}" class="btn btn-sm btn-outline-success mb-3">Добавить ребёнка</a>
 
 <!-- Братья/сёстры -->

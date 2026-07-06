@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="ru" data-bs-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
@@ -13,7 +13,33 @@
     <meta name="apple-mobile-web-app-title" content="Семейное древо">
     <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/icon-192x192.png') }}">
 
+    <!-- Bootstrap 5.3 (поддерживает тёмную тему через data-bs-theme) -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Дополнительные стили для тонкой настройки темы -->
+    <style>
+        :root {
+            --tree-card-bg: #f8f9fa;
+            --tree-card-border: #ccc;
+            --tree-card-hover: #e9ecef;
+        }
+        [data-bs-theme="dark"] {
+            --tree-card-bg: #343a40;
+            --tree-card-border: #495057;
+            --tree-card-hover: #495057;
+        }
+        .tree-card {
+            background: var(--tree-card-bg) !important;
+            border-color: var(--tree-card-border) !important;
+        }
+        .tree-card:hover {
+            background: var(--tree-card-hover) !important;
+        }
+        /* плавный переход */
+        body, .navbar, .card, .table, .list-group-item, .btn {
+            transition: background-color 0.3s, color 0.3s, border-color 0.3s;
+        }
+    </style>
 </head>
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
@@ -29,6 +55,10 @@
                     <a class="nav-link" href="{{ url_for('auth.login') }}">Войти</a>
                     <a class="nav-link" href="{{ url_for('auth.register') }}">Регистрация</a>
                 {% endif %}
+                <!-- Переключатель темы -->
+                <button id="theme-toggle" class="btn btn-sm btn-outline-light ms-2" title="Переключить тему">
+                    🌙
+                </button>
             </div>
         </div>
     </nav>
@@ -47,7 +77,48 @@
     </div>
     {% block scripts %}{% endblock %}
 
-    <!-- Регистрация сервис-воркера -->
+    <!-- Скрипт переключения темы -->
+    <script>
+        (function() {
+            const html = document.documentElement;
+            const toggleBtn = document.getElementById('theme-toggle');
+            const storedTheme = localStorage.getItem('theme');
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+            // Установить тему при загрузке
+            function setTheme(theme) {
+                if (theme === 'dark') {
+                    html.setAttribute('data-bs-theme', 'dark');
+                    toggleBtn.innerHTML = '☀️';
+                    document.querySelector('meta[name="theme-color"]').setAttribute('content', '#212529');
+                } else {
+                    html.setAttribute('data-bs-theme', 'light');
+                    toggleBtn.innerHTML = '🌙';
+                    document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff');
+                }
+            }
+
+            // Определяем тему: сохранённая > системная > светлая
+            let currentTheme = storedTheme || (prefersDark ? 'dark' : 'light');
+            setTheme(currentTheme);
+
+            // Обработчик клика
+            toggleBtn.addEventListener('click', function() {
+                currentTheme = html.getAttribute('data-bs-theme') === 'dark' ? 'light' : 'dark';
+                setTheme(currentTheme);
+                localStorage.setItem('theme', currentTheme);
+            });
+
+            // Слушаем изменения системной темы (если нет сохранённой)
+            window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function(e) {
+                if (!localStorage.getItem('theme')) {
+                    setTheme(e.matches ? 'dark' : 'light');
+                }
+            });
+        })();
+    </script>
+
+    <!-- Регистрация Service Worker (PWA) -->
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', function() {

@@ -2,7 +2,7 @@ from flask import Blueprint, render_template, redirect, url_for, request, flash,
 from flask_login import login_required, current_user
 from models import db, Person, Marriage, SiblingLink
 from utils import find_duplicates, parse_date
-from helpers import get_active_tree
+from helpers import get_active_tree, get_active_persons
 from datetime import datetime
 import os
 from werkzeug.utils import secure_filename
@@ -44,7 +44,7 @@ def add_marriage():
         db.session.commit()
         flash('Брак добавлен', 'success')
         return redirect(url_for('main.tree_detail'))
-    persons = Person.query.filter_by(tree_id=tree.id).order_by(Person.surname, Person.name).all()
+    persons = get_active_persons(tree_id=tree.id).order_by(Person.surname, Person.name).all()
     return render_template('add_marriage.html', tree=tree, persons=persons)
 
 @rel_bp.route('/person/<int:person_id>/add_child', methods=['GET', 'POST'])

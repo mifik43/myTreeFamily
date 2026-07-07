@@ -69,6 +69,8 @@ class Person(db.Model):
     marriages_as_wife = db.relationship('Marriage', foreign_keys='Marriage.wife_id', backref='wife', lazy=True)
     sibling_links_1 = db.relationship('SiblingLink', foreign_keys='SiblingLink.person1_id', backref='person1', lazy=True)
     sibling_links_2 = db.relationship('SiblingLink', foreign_keys='SiblingLink.person2_id', backref='person2', lazy=True)
+    
+    deleted_at = db.Column(db.DateTime, nullable=True)
 
     @property
     def full_name(self):
@@ -166,6 +168,10 @@ class Person(db.Model):
                 sibs.add(link.person1)
         return list(sibs)
 
+    @property
+    def is_deleted(self):
+        return self.deleted_at is not None
+    
 class Marriage(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     husband_id = db.Column(db.Integer, db.ForeignKey('person.id'), nullable=False)
@@ -198,3 +204,24 @@ class Invite(db.Model):
     tree_id = db.Column(db.Integer, db.ForeignKey('tree.id'), nullable=False)
     role = db.Column(db.String(20), default='editor')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+class AuditLog(db.Model):
+    __tablename__ = 'audit_log'
+    id = db.Column(db.Integer, primary_key=True)
+    person_id = db.Column(db.Integer, db.ForeignKey('person.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    action = db.Column(db.String(50), nullable=False)            # 'create', 'update', 'delete', 'merge'
+    old_values = db.Column(db.Text)                              # JSON-строка старых значений
+    new_values = db.Column(db.Text)                              # JSON-строка новых значений
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+
+    person = db.relationship('Person', backref='audit_logs')
+    user = db.relationship('User', backref='audit_logs')
+
+class Photo(db.Model):
+    __tablename__ = 'photo'
+    id = db.Column(db.Integer, primary_key=True)
+    person_id = db.Column(db.Integer, db.ForeignKey('person.id'), nullable=False)
+    filename = db.Column(db.String(300), nullable=False)
+    uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
+    person = db.relationship('Person', backref=db.backref('photos', lazy=True, cascade='all, delete-orphan'))

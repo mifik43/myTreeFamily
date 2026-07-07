@@ -88,12 +88,18 @@
 
     <!-- Фотография -->
     <div class="mb-3">
-        <label>Фотография</label>
-        <input type="file" name="photo" class="form-control">
-        {% if edit and person.photo %}
-            <img src="{{ url_for('static', filename='uploads/' + person.photo) }}" style="max-height: 100px;" class="mt-2">
-        {% endif %}
-    </div>
+    <label>Фотографии</label>
+    <input type="file" name="photos" class="form-control" multiple accept="image/*">
+    {% if edit and person.photos %}
+        <div class="row mt-2">
+            {% for photo in person.photos %}
+                <div class="col-auto">
+                    <img src="{{ url_for('static', filename='uploads/' + photo.filename) }}" style="max-height: 80px;" class="img-thumbnail">
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+</div>
 
     <!-- Соцсети -->
     <div class="row">

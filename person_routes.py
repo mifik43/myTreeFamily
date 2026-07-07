@@ -3,9 +3,9 @@ from datetime import datetime
 from werkzeug.utils import secure_filename
 from flask import Blueprint, render_template, redirect, url_for, request, flash, abort, session
 from flask_login import login_required, current_user
-from models import db, Person, Marriage
+from models import db, Person, Marriage, AuditLog
 from utils import find_duplicates, parse_date
-from helpers import get_active_tree
+from helpers import get_active_tree, get_active_persons
 
 person_bp = Blueprint('person', __name__)
 
@@ -59,15 +59,23 @@ def add_person():
         social_telegram = request.form.get('social_telegram', '').strip()
         social_mail = request.form.get('social_mail', '').strip()
 
-        photo_filename = None
-        if 'photo' in request.files:
-            file = request.files['photo']
-            if file and file.filename != '' and allowed_file(file.filename):
-                filename = secure_filename(file.filename)
-                base, ext = os.path.splitext(filename)
-                filename = f"{base}_{datetime.now().strftime('%Y%m%d%H%M%S')}{ext}"
-                file.save(os.path.join(UPLOAD_FOLDER, filename))
-                photo_filename = filename
+        photo_filenames = []
+        if 'photos' in request.files:
+            files = request.files.getlist('photos')
+            for file in files:
+                if file and file.filename != '' and allowed_file(file.filename):
+                    filename = secure_filename(file.filename)
+                    base, ext = os.path.splitext(filename)
+                    filename = f"{base}_{datetime.now().strftime('%Y%m%d%H%M%S')}{ext}"
+                    file.save(os.path.join(UPLOAD_FOLDER, filename))
+                    photo_filenames.append(filename)
+
+        # После создания person
+        for i, fname in enumerate(photo_filenames):
+            photo = Photo(person_id=person.id, filename=fname)
+            db.session.add(photo)
+            if i == 0:
+                person.photo = fname   # основное фото — первое
 
         duplicates = find_duplicates(surname, name, patronymic, b_year, tree, maiden_name)
         if duplicates['own'] or duplicates['others']:
@@ -173,14 +181,22 @@ def edit_person(person_id):
         person.birth_city = request.form.get('birth_city', '').strip()
         person.extra_info = request.form.get('extra_info', '').strip()
 
-        if 'photo' in request.files:
-            file = request.files['photo']
-            if file and file.filename != '' and allowed_file(file.filename):
-                filename = secure_filename(file.filename)
-                base, ext = os.path.splitext(filename)
-                filename = f"{base}_{datetime.now().strftime('%Y%m%d%H%M%S')}{ext}"
-                file.save(os.path.join(UPLOAD_FOLDER, filename))
-                person.photo = filename
+        if 'photos' in request.files:
+            files = request.files.getlist('photos')
+            for file in files:
+                if file and file.filename != '' and allowed_file(file.filename):
+                    filename = secure_filename(file.filename)
+                    base, ext = os.path.splitext(filename)
+                    filename = f"{base}_{datetime.now().strftime('%Y%m%d%H%M%S')}{ext}"
+                    file.save(os.path.join(UPLOAD_FOLDER, filename))
+                    photo_filenames.append(filename)
+
+        # После создания person
+        for i, fname in enumerate(photo_filenames):
+            photo = Photo(person_id=person.id, filename=fname)
+            db.session.add(photo)
+            if i == 0:
+                person.photo = fname   # основное фото — первое
 
         person.social_ok = request.form.get('social_ok', '').strip()
         person.social_vk = request.form.get('social_vk', '').strip()
@@ -191,7 +207,7 @@ def edit_person(person_id):
         flash('Данные обновлены', 'success')
         return redirect(url_for('person.person_detail', person_id=person.id))
 
-    all_persons = Person.query.filter_by(tree_id=tree.id).order_by(Person.surname, Person.name).all()
+    all_persons = get_active_persons(tree_id=tree.id).order_by(Person.surname, Person.name).all()
     return render_template('add_person.html', tree=tree, person=person, all_persons=all_persons, edit=True)
 
 @person_bp.route('/person/<int:person_id>/delete', methods=['POST'])
@@ -201,15 +217,47 @@ def delete_person(person_id):
     if not tree:
         abort(403)
     person = Person.query.get_or_404(person_id)
+    if person.tree_id != tree.id or person.is_deleted:
+        abort(403)
+    person.deleted_at = datetime.utcnow()
+    db.session.commit()
+    flash('Персона перемещена в корзину', 'success')
+    return redirect(url_for('main.tree_detail'))
+
+@person_bp.route('/person/<int:person_id>/restore', methods=['POST'])
+@login_required
+def restore_person(person_id):
+    tree = get_active_tree()
+    if not tree:
+        abort(403)
+    person = Person.query.get_or_404(person_id)
     if person.tree_id != tree.id:
         abort(403)
+    if not person.is_deleted:
+        flash('Персона не в корзине', 'warning')
+        return redirect(url_for('person.person_detail', person_id=person.id))
+    person.deleted_at = None
+    db.session.commit()
+    flash('Персона восстановлена', 'success')
+    return redirect(url_for('person.person_detail', person_id=person.id))
+
+@person_bp.route('/person/<int:person_id>/purge', methods=['POST'])
+@login_required
+def purge_person(person_id):
+    tree = get_active_tree()
+    if not tree:
+        abort(403)
+    person = Person.query.get_or_404(person_id)
+    if person.tree_id != tree.id:
+        abort(403)
+    # Физическое удаление (как раньше)
     Marriage.query.filter((Marriage.husband_id == person.id) | (Marriage.wife_id == person.id)).delete()
     Person.query.filter_by(father_id=person.id).update({Person.father_id: None})
     Person.query.filter_by(mother_id=person.id).update({Person.mother_id: None})
     db.session.delete(person)
     db.session.commit()
-    flash('Персона удалена', 'success')
-    return redirect(url_for('main.tree_detail'))
+    flash('Персона удалена окончательно', 'success')
+    return redirect(url_for('main.trash'))
 
 @person_bp.route('/person/merge', methods=['POST'])
 @login_required
@@ -285,3 +333,40 @@ def merge_persons():
     db.session.commit()
     flash(f'Персоны объединены в {primary.full_name}', 'success')
     return redirect(url_for('person.person_detail', person_id=primary.id))
+
+@person_bp.route('/person/<int:person_id>/history')
+@login_required
+def person_history(person_id):
+    tree = get_active_tree()
+    if not tree:
+        abort(403)
+    person = Person.query.get_or_404(person_id)
+    if person.tree_id != tree.id:
+        abort(403)
+    logs = AuditLog.query.filter_by(person_id=person.id).order_by(AuditLog.timestamp.desc()).all()
+    return render_template('person_history.html', tree=tree, person=person, logs=logs)
+
+@person_bp.route('/person/<int:person_id>/photo/<int:photo_id>/delete', methods=['POST'])
+@login_required
+def delete_photo(person_id, photo_id):
+    tree = get_active_tree()
+    if not tree:
+        abort(403)
+    person = Person.query.get_or_404(person_id)
+    if person.tree_id != tree.id:
+        abort(403)
+    photo = Photo.query.get_or_404(photo_id)
+    if photo.person_id != person.id:
+        abort(403)
+    # Удаляем файл
+    filepath = os.path.join(UPLOAD_FOLDER, photo.filename)
+    if os.path.exists(filepath):
+        os.remove(filepath)
+    # Если это было основное фото, обновляем
+    if person.photo == photo.filename:
+        next_photo = Photo.query.filter(Photo.person_id == person.id, Photo.id != photo.id).first()
+        person.photo = next_photo.filename if next_photo else None
+    db.session.delete(photo)
+    db.session.commit()
+    flash('Фото удалено', 'success')
+    return redirect(url_for('person.person_detail', person_id=person.id))

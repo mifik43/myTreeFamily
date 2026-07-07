@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>История изменений: {{ person.full_name }}</h1>
+{% if logs %}
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Дата</th>
+                <th>Пользователь</th>
+                <th>Действие</th>
+                <th>Изменения</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for log in logs %}
+            <tr>
+                <td>{{ log.timestamp.strftime('%d.%m.%Y %H:%M') }}</td>
+                <td>{{ log.user.username }}</td>
+                <td>
+                    {% if log.action == 'create' %}Создание
+                    {% elif log.action == 'update' %}Обновление
+                    {% elif log.action == 'delete' %}Удаление
+                    {% elif log.action == 'merge' %}Объединение
+                    {% endif %}
+                </td>
+                <td>
+                    {% if log.old_values or log.new_values %}
+                        <small>
+                            {% if log.old_values %}<strong>Было:</strong> {{ log.old_values }}<br>{% endif %}
+                            {% if log.new_values %}<strong>Стало:</strong> {{ log.new_values }}{% endif %}
+                        </small>
+                    {% else %}
+                        —
+                    {% endif %}
+                </td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+{% else %}
+    <p>Записей об изменениях нет.</p>
+{% endif %}
+<a href="{{ url_for('person.person_detail', person_id=person.id) }}" class="btn btn-secondary">Назад к персоне</a>
+{% endblock %}

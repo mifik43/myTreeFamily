@@ -2,7 +2,7 @@ from datetime import datetime
 from flask import Blueprint, render_template, redirect, url_for, request, flash
 from flask_login import login_required, current_user
 from models import db, Person, Marriage, SiblingLink
-from helpers import get_active_tree
+from helpers import get_active_tree, get_active_persons
 
 confirm_bp = Blueprint('confirm', __name__)
 

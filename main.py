@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, redirect, url_for, request, abort, session, flash
 from flask_login import login_required, current_user
 from models import db, Tree, Person, Marriage, SiblingLink, Invite, TreePermission
-from helpers import get_active_tree
+from helpers import get_active_tree, get_active_persons 
 import secrets
 
 main_bp = Blueprint('main', __name__)
@@ -29,7 +29,7 @@ def tree_detail():
     view = request.args.get('view', 'table')
     surname_filter = request.args.get('surname', '').strip()
 
-    persons_query = Person.query.filter_by(tree_id=tree.id).order_by(Person.surname, Person.name)
+    persons_query = get_active_persons(tree_id=tree.id).order_by(Person.surname, Person.name)
     all_persons = persons_query.all()
     surnames = sorted(list({masculine_surname(p.surname) for p in all_persons}))
 
@@ -176,3 +176,16 @@ def find_duplicates():
 
     duplicates = [group for group in groups.values() if len(group) > 1]
     return render_template('duplicates.html', tree=tree, duplicates=duplicates)
+
+@main_bp.route('/trash')
+@login_required
+def trash():
+    tree = get_active_tree()
+    if not tree:
+        flash('Нет активного дерева', 'danger')
+        return redirect(url_for('main.tree_detail'))
+    deleted_persons = Person.query.filter(
+        Person.tree_id == tree.id,
+        Person.deleted_at != None
+    ).order_by(Person.deleted_at.desc()).all()
+    return render_template('trash.html', tree=tree, deleted_persons=deleted_persons)

@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>История изменений: {{ person.full_name }}</h1>
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>Дата</th>
+            <th>Пользователь</th>
+            <th>Действие</th>
+            <th>Детали</th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for log in logs %}
+        <tr>
+            <td>{{ log.timestamp.strftime('%d.%m.%Y %H:%M') }}</td>
+            <td>{{ log.user.username }}</td>
+            <td>
+                {% if log.action == 'create' %}Создание
+                {% elif log.action == 'update' %}Обновление
+                {% elif log.action == 'delete' %}Удаление
+                {% elif log.action == 'merge_into' %}Поглощена при слиянии
+                {% elif log.action == 'merge_from' %}Приняла данные при слиянии
+                {% else %}{{ log.action }}
+                {% endif %}
+            </td>
+            <td>
+                {% if log.action == 'update' %}
+                    <small>
+                        <details>
+                            <summary>Изменения</summary>
+                            <ul>
+                            {% set old = log.old_values|safe|json_loads %}
+                            {% set new = log.new_values|safe|json_loads %}
+                            {% for key in old %}
+                                {% if old[key] != new[key] %}
+                                    <li><strong>{{ key }}:</strong> {{ old[key] }} → {{ new[key] }}</li>
+                                {% endif %}
+                            {% endfor %}
+                            </ul>
+                        </details>
+                    </small>
+                {% endif %}
+            </td>
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>
+<a href="{{ url_for('person.person_detail', person_id=person.id) }}" class="btn btn-secondary">Назад</a>
+{% endblock %}

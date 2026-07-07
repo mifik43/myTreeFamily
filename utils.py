@@ -1,6 +1,7 @@
 from models import Person, Tree, db
 from datetime import datetime
 import re
+from helpers import get_active_tree, get_active_persons
 
 def find_duplicates(surname, name, patronymic, birth_year, tree, maiden_name=None):
     if not surname or not name:
@@ -49,3 +50,32 @@ def parse_date(date_str):
             if 1 <= month <= 12:
                 return year, month, None, None
     return None, None, None, date_str
+
+def log_audit(user_id, person, action):
+    old_attrs = {
+        'surname': person.surname,
+        'name': person.name,
+        'patronymic': person.patronymic,
+        'maiden_name': person.maiden_name,
+        'gender': person.gender,
+        'birth_year': person.birth_year,
+        'birth_month': person.birth_month,
+        'birth_day': person.birth_day,
+        'birth_notes': person.birth_notes,
+        'death_year': person.death_year,
+        'death_month': person.death_month,
+        'death_day': person.death_day,
+        'death_notes': person.death_notes,
+        'birth_city': person.birth_city,
+        'extra_info': person.extra_info
+    }
+    from models import AuditLog, db
+    log = AuditLog(
+        user_id=user_id,
+        person_id=person.id,
+        action=action,
+        old_values=json.dumps(old_attrs, ensure_ascii=False, default=str),
+        new_values=json.dumps(old_attrs, ensure_ascii=False, default=str)  # будет перезаписано после изменений
+    )
+    db.session.add(log)
+    return log

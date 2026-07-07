@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Корзина — {{ tree.name }}</h1>
+{% if deleted_persons %}
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>ФИО</th>
+                <th>Удалена</th>
+                <th>Действия</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for p in deleted_persons %}
+            <tr>
+                <td>{{ p.full_name }}</td>
+                <td>{{ p.deleted_at.strftime('%d.%m.%Y %H:%M') }}</td>
+                <td>
+                    <form method="POST" action="{{ url_for('person.restore_person', person_id=p.id) }}" style="display:inline">
+                        <button class="btn btn-sm btn-success">Восстановить</button>
+                    </form>
+                    <form method="POST" action="{{ url_for('person.purge_person', person_id=p.id) }}" style="display:inline" onsubmit="return confirm('Удалить окончательно?');">
+                        <button class="btn btn-sm btn-danger">Удалить навсегда</button>
+                    </form>
+                </td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+{% else %}
+    <p>Корзина пуста.</p>
+{% endif %}
+<a href="{{ url_for('main.tree_detail') }}" class="btn btn-secondary">Назад к дереву</a>
+{% endblock %}

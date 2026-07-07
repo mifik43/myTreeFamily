@@ -1,6 +1,6 @@
 from flask import session
 from flask_login import current_user
-from models import Tree
+from models import Tree, Person
 
 def get_active_tree():
     if not current_user.is_authenticated:
@@ -15,3 +15,10 @@ def get_active_tree():
             session['active_tree_id'] = perm.tree_id
             return perm.tree
     return None
+
+def get_active_persons(tree_id=None):
+    """Возвращает запрос, исключающий мягко удалённых персон."""
+    q = Person.query.filter(Person.deleted_at == None)
+    if tree_id is not None:
+        q = q.filter(Person.tree_id == tree_id)
+    return q

@@ -102,6 +102,7 @@
     <a href="{{ url_for('main.generate_invite') }}" class="btn btn-sm btn-outline-info">Пригласить редактора</a>
     {% if current_user.is_authenticated and active_tree and active_tree.user_id == current_user.id %}
     <a href="{{ url_for('main.find_duplicates') }}" class="btn btn-sm btn-outline-warning">🔍 Дубликаты</a>
+    <a href="{{ url_for('main.trash') }}" class="btn btn-sm btn-outline-danger">🗑 Корзина</a>
 {% endif %}
 {% endif %}
 </div>

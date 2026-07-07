@@ -103,6 +103,11 @@
     {% if current_user.is_authenticated and active_tree and active_tree.user_id == current_user.id %}
     <a href="{{ url_for('main.find_duplicates') }}" class="btn btn-sm btn-outline-warning">🔍 Дубликаты</a>
     <a href="{{ url_for('main.trash') }}" class="btn btn-sm btn-outline-danger">🗑 Корзина</a>
+    <div class="mb-3">
+    <a href="{{ url_for('main.export_gedcom') }}" class="btn btn-sm btn-outline-info">📥 GEDCOM</a>
+    <a href="{{ url_for('main.import_gedcom') }}" class="btn btn-sm btn-outline-info">📤 Импорт GEDCOM</a>
+    <a href="{{ url_for('main.export_excel') }}" class="btn btn-sm btn-outline-success">📊 Excel</a>
+</div>
 {% endif %}
 {% endif %}
 </div>

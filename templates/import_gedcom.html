@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Импорт GEDCOM в дерево «{{ tree.name }}»</h1>
+<form method="POST" enctype="multipart/form-data">
+    <div class="mb-3">
+        <label>Выберите файл .ged</label>
+        <input type="file" name="gedcom_file" class="form-control" accept=".ged" required>
+    </div>
+    <button type="submit" class="btn btn-primary">Загрузить</button>
+    <a href="{{ url_for('main.tree_detail') }}" class="btn btn-secondary">Отмена</a>
+</form>
+{% endblock %}

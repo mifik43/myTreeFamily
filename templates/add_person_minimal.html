@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Тестовая форма</h1>
+<form method="POST">
+    <div class="mb-3">
+        <label>Фамилия</label>
+        <input type="text" name="surname" class="form-control" value="{{ person.surname if edit else '' }}" required>
+    </div>
+    <div class="mb-3">
+        <label>Имя</label>
+        <input type="text" name="name" class="form-control" value="{{ person.name if edit else '' }}" required>
+    </div>
+    <button type="submit" class="btn btn-primary">Сохранить</button>
+</form>
+{% endblock %}

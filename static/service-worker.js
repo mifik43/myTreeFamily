@@ -5,28 +5,31 @@ const STATIC_ASSETS = [
     '/static/manifest.json',
     '/static/icons/icon-192x192.png',
     '/static/icons/icon-512x512.png',
-    // можно добавить другие часто используемые ресурсы
 ];
 
-// Установка и кеширование статики
 self.addEventListener('install', event => {
     event.waitUntil(
         caches.open(CACHE_NAME).then(cache => {
-            return cache.addAll(STATIC_ASSETS);
+            return Promise.allSettled(
+                STATIC_ASSETS.map(url =>
+                    fetch(url, { mode: 'no-cors' })
+                        .then(response => {
+                            if (response.ok || response.type === 'opaque') {
+                                return cache.put(url, response);
+                            }
+                        })
+                        .catch(err => console.warn('Не удалось закешировать', url, err))
+                )
+            );
         })
     );
 });
 
-// Стратегия "сеть сначала, при неудаче – кеш"
 self.addEventListener('fetch', event => {
-    // Не кешируем POST-запросы и API
-    if (event.request.method !== 'GET') {
-        return;
-    }
+    if (event.request.method !== 'GET') return;
     event.respondWith(
         fetch(event.request)
             .then(response => {
-                // Кешируем успешные ответы
                 if (response && response.status === 200) {
                     const clonedResponse = response.clone();
                     caches.open(CACHE_NAME).then(cache => {
@@ -35,14 +38,10 @@ self.addEventListener('fetch', event => {
                 }
                 return response;
             })
-            .catch(() => {
-                // Если сеть недоступна, отдаём из кеша
-                return caches.match(event.request);
-            })
+            .catch(() => caches.match(event.request))
     );
 });
 
-// Удаление старых кешей при активации
 self.addEventListener('activate', event => {
     event.waitUntil(
         caches.keys().then(cacheNames => {

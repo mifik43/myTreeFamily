@@ -107,6 +107,7 @@
     <a href="{{ url_for('main.export_gedcom') }}" class="btn btn-sm btn-outline-info">📥 GEDCOM</a>
     <a href="{{ url_for('main.import_gedcom') }}" class="btn btn-sm btn-outline-info">📤 Импорт GEDCOM</a>
     <a href="{{ url_for('main.export_excel') }}" class="btn btn-sm btn-outline-success">📊 Excel</a>
+    <a href="{{ url_for('main.tree_map') }}" class="btn btn-sm btn-outline-info">🗺 Карта</a>
 </div>
 {% endif %}
 {% endif %}
@@ -150,7 +151,13 @@
     {% else %}
         <p>Ваше дерево пусто. Добавьте родственников, начиная с себя.</p>
     {% endif %}
-
+{% if view == 'table' %}
+    <div id="table-container">
+        <div id="loader" class="text-center" style="display:none;">
+            <div class="spinner-border" role="status"></div>
+        </div>
+    </div>
+{% endif %}
 {% elif view == 'list' %}
     {% if root_persons %}
         <div class="tree-list">
@@ -351,6 +358,69 @@
 <div id="custom-tooltip"></div>
 
 <script>
+    {% if view == 'table' %}
+<script>
+    var currentPage = 1;
+    var hasMore = true;
+    var loading = false;
+
+    function loadPage(page) {
+        if (loading || !hasMore) return;
+        loading = true;
+        document.getElementById('loader').style.display = 'block';
+
+        var params = new URLSearchParams(window.location.search);
+        params.set('page', page);
+
+        fetch('/tree/data?' + params.toString())
+            .then(response => response.json())
+            .then(data => {
+                var container = document.getElementById('table-container');
+                if (page === 1) {
+                    var table = document.createElement('table');
+                    table.className = 'table table-striped';
+                    table.innerHTML = '<thead><tr>' +
+                        '<th>Фамилия</th><th>Имя и Отчество</th><th>Дата рождения</th><th>Город</th><th></th>' +
+                        '</tr></thead><tbody id="persons-tbody"></tbody>';
+                    container.insertBefore(table, document.getElementById('loader'));
+                }
+                var tbody = document.getElementById('persons-tbody');
+                data.persons.forEach(function(p) {
+                    var row = tbody.insertRow();
+                    row.innerHTML =
+                        '<td>' + p.surname + '</td>' +
+                        '<td><a href="/person/' + p.id + '">' + p.name + ' ' + (p.patronymic || '') + '</a></td>' +
+                        '<td>' + p.birth_display + '</td>' +
+                        '<td>' + (p.birth_city || '-') + '</td>' +
+                        '<td>' +
+                        '<a href="/person/' + p.id + '/edit" class="btn btn-sm btn-warning">Изм.</a> ' +
+                        '<form method="POST" action="/person/' + p.id + '/delete" style="display:inline" onsubmit="return confirm(\'Удалить персону и все её связи?\')">' +
+                        '<button class="btn btn-sm btn-danger">Уд.</button></form>' +
+                        '</td>';
+                });
+                hasMore = data.has_more;
+                loading = false;
+                document.getElementById('loader').style.display = 'none';
+            })
+            .catch(error => {
+                console.error(error);
+                loading = false;
+            });
+    }
+
+    loadPage(1);
+
+    window.addEventListener('scroll', function() {
+        if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 100) {
+            if (hasMore && !loading) {
+                currentPage++;
+                loadPage(currentPage);
+            }
+        }
+    });
+</script>
+{% endif %}
+
 var nodes = new vis.DataSet({{ nodes|tojson }});
 var edges = new vis.DataSet({{ edges|tojson }});
 

@@ -1,7 +1,6 @@
 from models import Person, Tree, db
 from datetime import datetime
 import re
-from helpers import get_active_tree, get_active_persons
 
 def find_duplicates(surname, name, patronymic, birth_year, tree, maiden_name=None):
     if not surname or not name:
@@ -17,10 +16,10 @@ def find_duplicates(surname, name, patronymic, birth_year, tree, maiden_name=Non
     if maiden_name:
         query = query.filter(db.or_(Person.surname == surname, Person.maiden_name == maiden_name))
     persons = query.all()
-    own = [p for p in persons if p.tree_id == tree.id]
+    own = [p for p in persons if p.tree_id == tree.id and not p.is_deleted]
     others = []
     for p in persons:
-        if p.tree_id != tree.id:
+        if p.tree_id != tree.id and not p.is_deleted:
             t = Tree.query.get(p.tree_id)
             if t:
                 owner = t.owner
@@ -51,31 +50,35 @@ def parse_date(date_str):
                 return year, month, None, None
     return None, None, None, date_str
 
-def log_audit(user_id, person, action):
-    old_attrs = {
-        'surname': person.surname,
-        'name': person.name,
-        'patronymic': person.patronymic,
-        'maiden_name': person.maiden_name,
-        'gender': person.gender,
-        'birth_year': person.birth_year,
-        'birth_month': person.birth_month,
-        'birth_day': person.birth_day,
-        'birth_notes': person.birth_notes,
-        'death_year': person.death_year,
-        'death_month': person.death_month,
-        'death_day': person.death_day,
-        'death_notes': person.death_notes,
-        'birth_city': person.birth_city,
-        'extra_info': person.extra_info
-    }
-    from models import AuditLog, db
-    log = AuditLog(
-        user_id=user_id,
-        person_id=person.id,
-        action=action,
-        old_values=json.dumps(old_attrs, ensure_ascii=False, default=str),
-        new_values=json.dumps(old_attrs, ensure_ascii=False, default=str)  # будет перезаписано после изменений
-    )
-    db.session.add(log)
-    return log
+def apply_filters(persons, search_query=None, ye=False, birth_year_from=None,
+                  birth_year_to=None, birth_city_search=None, extra_info_search=None):
+    """Применяет фильтры к списку персон и возвращает отфильтрованный список."""
+    if search_query:
+        def match_person(p):
+            fields = [p.surname, p.name, p.patronymic or '']
+            if ye:
+                def normalize(s):
+                    return s.replace('ё', 'е').replace('Ё', 'Е')
+                query_norm = normalize(search_query)
+                return any(query_norm in normalize(f) for f in fields)
+            else:
+                return any(search_query.lower() in f.lower() for f in fields)
+        persons = [p for p in persons if match_person(p)]
+
+    if birth_year_from:
+        try:
+            year_from = int(birth_year_from)
+            persons = [p for p in persons if p.birth_year and p.birth_year >= year_from]
+        except ValueError:
+            pass
+    if birth_year_to:
+        try:
+            year_to = int(birth_year_to)
+            persons = [p for p in persons if p.birth_year and p.birth_year <= year_to]
+        except ValueError:
+            pass
+    if birth_city_search:
+        persons = [p for p in persons if p.birth_city and birth_city_search.lower() in p.birth_city.lower()]
+    if extra_info_search:
+        persons = [p for p in persons if p.extra_info and extra_info_search.lower() in p.extra_info.lower()]
+    return persons

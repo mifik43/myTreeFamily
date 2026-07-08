@@ -1,6 +1,16 @@
 {% extends "base.html" %}
 {% block content %}
 <h1>{% if edit %}Редактирование{% else %}Добавление{% endif %} персоны в дереве «{{ tree.name }}»</h1>
+
+<style>
+    #deathFields {
+        display: none;
+    }
+    #is_dead:checked ~ #deathFields {
+        display: block;
+    }
+</style>
+
 <form method="POST" enctype="multipart/form-data">
     <div class="row">
         <div class="col-md-6 mb-3">
@@ -12,17 +22,18 @@
             <input type="text" name="name" class="form-control" value="{{ person.name if edit else '' }}" required>
         </div>
     </div>
+
     <div class="mb-3">
         <label>Отчество</label>
         <input type="text" name="patronymic" class="form-control" value="{{ person.patronymic if edit and person.patronymic else '' }}">
     </div>
+
     <div class="mb-3">
         <label>Девичья фамилия</label>
         <input type="text" name="maiden_name" class="form-control" value="{{ person.maiden_name if edit else '' }}" placeholder="Только для женщин">
         <small class="text-muted">Если у женщины менялась фамилия — укажите девичью</small>
     </div>
 
-    <!-- Пол -->
     <div class="mb-3">
         <label>Пол *</label>
         <div>
@@ -39,7 +50,6 @@
         </div>
     </div>
 
-    <!-- Дата рождения (текстовое поле + примечание) -->
     <div class="row">
         <div class="col-md-6 mb-3">
             <label>Дата рождения</label>
@@ -53,13 +63,13 @@
         </div>
     </div>
 
-    <!-- Галочка "Умер(ла)" и дата смерти -->
     <div class="form-check mb-3">
         <input class="form-check-input" type="checkbox" name="is_dead" id="is_dead" value="1"
                {% if edit and (person.death_year or person.death_notes) %}checked{% endif %}>
         <label class="form-check-label" for="is_dead">Умер(ла)</label>
     </div>
-    <div id="deathFields" style="display: none;">
+
+    <div id="deathFields">
         <div class="row">
             <div class="col-md-6 mb-3">
                 <label>Дата смерти</label>
@@ -73,35 +83,33 @@
         </div>
     </div>
 
-    <!-- Город рождения -->
     <div class="mb-3">
         <label>Город рождения</label>
         <input type="text" name="birth_city" class="form-control" value="{{ person.birth_city if edit else '' }}">
     </div>
 
-    <!-- Дополнительная информация -->
     <div class="mb-3">
         <label>Дополнительная информация</label>
         <textarea name="extra_info" class="form-control" rows="3">{{ person.extra_info if edit else '' }}</textarea>
         <small class="text-muted">Служба, работа, участие в войнах, награды и т.д.</small>
     </div>
 
-    <!-- Фотография -->
+    <!-- Фотографии -->
     <div class="mb-3">
-    <label>Фотографии</label>
-    <input type="file" name="photos" class="form-control" multiple accept="image/*">
-    {% if edit and person.photos %}
-        <div class="row mt-2">
-            {% for photo in person.photos %}
-                <div class="col-auto">
-                    <img src="{{ url_for('static', filename='uploads/' + photo.filename) }}" style="max-height: 80px;" class="img-thumbnail">
-                </div>
-            {% endfor %}
-        </div>
-    {% endif %}
-</div>
+        <label>Фотографии</label>
+        <input type="file" name="photos" class="form-control" multiple accept="image/*">
+        {% if edit and person.photos %}
+            <div class="row mt-2">
+                {% for photo in person.photos %}
+                    <div class="col-auto text-center">
+                        <img src="{{ url_for('static', filename='uploads/' + photo.filename) }}" style="max-height: 80px;" class="img-thumbnail">
+                        <button type="button" class="btn btn-sm btn-outline-danger mt-1" onclick="deletePhoto({{ person.id }}, {{ photo.id }})">✕</button>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    </div>
 
-    <!-- Соцсети -->
     <div class="row">
         <div class="col-md-6 mb-3">
             <label>Одноклассники</label>
@@ -130,9 +138,7 @@
                 <p><strong>Отец:</strong>
                 {% if person.father %}
                     <a href="{{ url_for('person.person_detail', person_id=person.father.id) }}">{{ person.father.full_name }}</a>
-                    <form method="POST" action="{{ url_for('relationships.remove_parent', person_id=person.id, parent_id=person.father.id) }}" style="display:inline;" onsubmit="return confirm('Удалить отца?');">
-                        <button class="btn btn-sm btn-outline-danger" title="Удалить отца">✕</button>
-                    </form>
+                    <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeParent({{ person.id }}, {{ person.father.id }})">✕</button>
                 {% else %}
                     <span class="text-muted">не указан</span>
                     <a href="{{ url_for('relationships.add_parent', person_id=person.id, gender='M') }}" class="btn btn-sm btn-outline-secondary ms-2">Добавить отца</a>
@@ -143,9 +149,7 @@
                 <p><strong>Мать:</strong>
                 {% if person.mother %}
                     <a href="{{ url_for('person.person_detail', person_id=person.mother.id) }}">{{ person.mother.full_name }}</a>
-                    <form method="POST" action="{{ url_for('relationships.remove_parent', person_id=person.id, parent_id=person.mother.id) }}" style="display:inline;" onsubmit="return confirm('Удалить мать?');">
-                        <button class="btn btn-sm btn-outline-danger" title="Удалить мать">✕</button>
-                    </form>
+                    <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeParent({{ person.id }}, {{ person.mother.id }})">✕</button>
                 {% else %}
                     <span class="text-muted">не указана</span>
                     <a href="{{ url_for('relationships.add_parent', person_id=person.id, gender='F') }}" class="btn btn-sm btn-outline-secondary ms-2">Добавить мать</a>
@@ -163,14 +167,31 @@
     {% endif %}
 </form>
 {% endblock %}
+
 {% block scripts %}
 <script>
-    const isDeadCheckbox = document.getElementById('is_dead');
-    const deathFields = document.getElementById('deathFields');
-    function toggleDeathFields() {
-        deathFields.style.display = isDeadCheckbox.checked ? 'block' : 'none';
+    async function removeParent(personId, parentId) {
+        if (!confirm('Удалить родителя?')) return;
+        let response = await fetch(`/person/${personId}/remove_parent/${parentId}`, {
+            method: 'POST'
+        });
+        if (response.ok) {
+            location.reload();
+        } else {
+            alert('Ошибка при удалении родителя');
+        }
     }
-    isDeadCheckbox.addEventListener('change', toggleDeathFields);
-    toggleDeathFields();
+
+    async function deletePhoto(personId, photoId) {
+        if (!confirm('Удалить фото?')) return;
+        let response = await fetch(`/person/${personId}/photo/${photoId}/delete`, {
+            method: 'POST'
+        });
+        if (response.ok) {
+            location.reload();
+        } else {
+            alert('Ошибка при удалении фото');
+        }
+    }
 </script>
 {% endblock %}

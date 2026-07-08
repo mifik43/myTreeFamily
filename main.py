@@ -6,7 +6,8 @@ from flask import (Blueprint, render_template, redirect, url_for, request,
 from flask_login import login_required, current_user
 from models import (db, Tree, Person, Marriage, SiblingLink,
                     Invite, TreePermission)
-from helpers import get_active_tree, get_active_persons
+from helpers import get_active_tree, get_active_persons, geocode
+from utils import parse_date, apply_filters
 import openpyxl
 
 main_bp = Blueprint('main', __name__)
@@ -76,34 +77,9 @@ def tree_detail():
     birth_city_search = request.args.get('birth_city_search', '').strip()
     extra_info_search = request.args.get('extra_info_search', '').strip()
 
-    if search_query:
-        def match_person(p):
-            fields = [p.surname, p.name, p.patronymic or '']
-            if ye:
-                def normalize(s):
-                    return s.replace('ё', 'е').replace('Ё', 'Е')
-                query_norm = normalize(search_query)
-                return any(query_norm in normalize(f) for f in fields)
-            else:
-                return any(search_query.lower() in f.lower() for f in fields)
-        persons = [p for p in persons if match_person(p)]
-
-    if birth_year_from:
-        try:
-            year_from = int(birth_year_from)
-            persons = [p for p in persons if p.birth_year and p.birth_year >= year_from]
-        except ValueError:
-            pass
-    if birth_year_to:
-        try:
-            year_to = int(birth_year_to)
-            persons = [p for p in persons if p.birth_year and p.birth_year <= year_to]
-        except ValueError:
-            pass
-    if birth_city_search:
-        persons = [p for p in persons if p.birth_city and birth_city_search.lower() in p.birth_city.lower()]
-    if extra_info_search:
-        persons = [p for p in persons if p.extra_info and extra_info_search.lower() in p.extra_info.lower()]
+    # Применяем все фильтры через единую функцию
+    persons = apply_filters(persons, search_query, ye, birth_year_from, birth_year_to,
+                            birth_city_search, extra_info_search)
 
     common_params = dict(
         tree=tree, persons=persons, surnames=surnames,
@@ -171,6 +147,48 @@ def tree_detail():
 
     # таблица по умолчанию
     return render_template('tree_detail.html', view='table', **common_params)
+
+
+@main_bp.route('/tree/data')
+@login_required
+def tree_data():
+    tree = get_active_tree()
+    if not tree:
+        return {'error': 'no active tree'}, 403
+
+    page = request.args.get('page', 1, type=int)
+    per_page = 50
+    surname_filter = request.args.get('surname', '').strip()
+    search_query = request.args.get('search', '').strip()
+    ye = request.args.get('ye', '0') == '1'
+    birth_year_from = request.args.get('birth_year_from', '').strip()
+    birth_year_to = request.args.get('birth_year_to', '').strip()
+    birth_city_search = request.args.get('birth_city_search', '').strip()
+    extra_info_search = request.args.get('extra_info_search', '').strip()
+
+    persons = get_active_persons(tree_id=tree.id).order_by(Person.surname, Person.name).all()
+    if surname_filter and surname_filter != 'Все':
+        persons = [p for p in persons if masculine_surname(p.surname) == surname_filter]
+    persons = apply_filters(persons, search_query, ye, birth_year_from, birth_year_to,
+                            birth_city_search, extra_info_search)
+
+    total = len(persons)
+    start = (page - 1) * per_page
+    end = start + per_page
+    page_persons = persons[start:end]
+
+    data = {
+        'persons': [{
+            'id': p.id,
+            'surname': p.surname,
+            'name': p.name,
+            'patronymic': p.patronymic or '',
+            'birth_display': p.birth_display,
+            'birth_city': p.birth_city or '',
+        } for p in page_persons],
+        'has_more': end < total
+    }
+    return data
 
 
 @main_bp.route('/invite/generate')
@@ -455,7 +473,7 @@ def import_gedcom():
                 for child_gedcom in fam['children']:
                     child_id = id_map.get(child_gedcom)
                     if child_id:
-                        child = Person.query.get(child_id)
+                        child = db.session.get(Person, child_id)
                         if child:
                             child.father_id = husb_id
                             child.mother_id = wife_id
@@ -505,3 +523,59 @@ def export_excel():
     return send_file(output,
                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                      as_attachment=True, download_name=f'tree_{tree.id}_persons.xlsx')
+
+
+# ----------------------------------------------------------------------
+# Карта (Яндекс.Карты)
+# ----------------------------------------------------------------------
+@main_bp.route('/tree/map')
+@login_required
+def tree_map():
+    tree = get_active_tree()
+    if not tree:
+        flash('Нет активного дерева', 'danger')
+        return redirect(url_for('main.tree_detail'))
+
+    persons = get_active_persons(tree_id=tree.id).all()
+
+    points = []
+    migrations = []
+
+    for p in persons:
+        city = p.birth_city
+        if city:
+            lat, lon = geocode(city)
+            if lat and lon:
+                points.append({
+                    'name': p.full_name,
+                    'city': city,
+                    'lat': lat,
+                    'lon': lon,
+                    'person_id': p.id,
+                    'birth_year': p.birth_year,
+                    'gender': p.gender
+                })
+
+        # Миграция: от родителя к ребёнку (только если оба имеют разные города)
+        if p.father and p.father.birth_city and p.birth_city and p.father.birth_city != p.birth_city:
+            flat, flon = geocode(p.father.birth_city)
+            clat, clon = geocode(p.birth_city)
+            if flat and flon and clat and clon:
+                migrations.append({
+                    'from_name': p.father.full_name,
+                    'to_name': p.full_name,
+                    'from_lat': flat, 'from_lon': flon,
+                    'to_lat': clat, 'to_lon': clon
+                })
+        if p.mother and p.mother.birth_city and p.birth_city and p.mother.birth_city != p.birth_city:
+            mlat, mlon = geocode(p.mother.birth_city)
+            clat, clon = geocode(p.birth_city)
+            if mlat and mlon and clat and clon:
+                migrations.append({
+                    'from_name': p.mother.full_name,
+                    'to_name': p.full_name,
+                    'from_lat': mlat, 'from_lon': mlon,
+                    'to_lat': clat, 'to_lon': clon
+                })
+
+    return render_template('map.html', tree=tree, points=points, migrations=migrations)

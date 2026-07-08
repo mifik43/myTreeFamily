@@ -13,3 +13,4 @@ class Config:
         'pool_pre_ping': os.environ.get('DB_POOL_PRE_PING', 'true').lower() == 'true',
         'pool_timeout': int(os.environ.get('DB_POOL_TIMEOUT', 30)),
     }
+    YANDEX_MAPS_API_KEY = os.environ.get('YANDEX_MAPS_API_KEY', '6f24891b-8fe6-434c-b672-42748f62a380')

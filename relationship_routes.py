@@ -1,8 +1,8 @@
-from flask import Blueprint, render_template, redirect, url_for, request, flash, abort, session
+from flask import Blueprint, render_template, redirect, url_for, request, flash, abort
 from flask_login import login_required, current_user
 from models import db, Person, Marriage, SiblingLink
 from utils import find_duplicates, parse_date
-from helpers import get_active_tree, get_active_persons
+from helpers import get_active_tree
 from datetime import datetime
 import os
 from werkzeug.utils import secure_filename
@@ -33,8 +33,8 @@ def add_marriage():
         marriage_date = None
         if m_year:
             marriage_date = datetime(m_year, m_month or 1, m_day or 1).date()
-        h = Person.query.get(husband_id)
-        w = Person.query.get(wife_id)
+        h = db.session.get(Person, husband_id)
+        w = db.session.get(Person, wife_id)
         if not h or not w or h.tree_id != tree.id or w.tree_id != tree.id:
             abort(403)
         if h.gender != 'M' or w.gender != 'F':
@@ -44,7 +44,7 @@ def add_marriage():
         db.session.commit()
         flash('Брак добавлен', 'success')
         return redirect(url_for('main.tree_detail'))
-    persons = get_active_persons(tree_id=tree.id).order_by(Person.surname, Person.name).all()
+    persons = Person.query.filter_by(tree_id=tree.id).order_by(Person.surname, Person.name).all()
     return render_template('add_marriage.html', tree=tree, persons=persons)
 
 @rel_bp.route('/person/<int:person_id>/add_child', methods=['GET', 'POST'])
@@ -53,9 +53,9 @@ def add_child(person_id):
     tree = get_active_tree()
     if not tree:
         abort(403)
-    parent = Person.query.get_or_404(person_id)
-    if parent.tree_id != tree.id:
-        abort(403)
+    parent = db.session.get(Person, person_id)
+    if not parent or parent.tree_id != tree.id:
+        abort(404)
 
     if request.method == 'POST':
         surname = request.form.get('surname', '').strip()
@@ -118,13 +118,13 @@ def add_child(person_id):
         if parent.gender == 'M':
             child.father_id = parent.id
             if second_parent_id:
-                mother = Person.query.get(int(second_parent_id))
+                mother = db.session.get(Person, int(second_parent_id))
                 if mother and mother.tree_id == tree.id and mother.gender == 'F':
                     child.mother_id = mother.id
         else:
             child.mother_id = parent.id
             if second_parent_id:
-                father = Person.query.get(int(second_parent_id))
+                father = db.session.get(Person, int(second_parent_id))
                 if father and father.tree_id == tree.id and father.gender == 'M':
                     child.father_id = father.id
 
@@ -142,9 +142,9 @@ def add_spouse(person_id):
     tree = get_active_tree()
     if not tree:
         abort(403)
-    person = Person.query.get_or_404(person_id)
-    if person.tree_id != tree.id:
-        abort(403)
+    person = db.session.get(Person, person_id)
+    if not person or person.tree_id != tree.id:
+        abort(404)
     opposite_gender = 'F' if person.gender == 'M' else 'M'
 
     if request.method == 'POST':
@@ -222,9 +222,9 @@ def add_parent(person_id):
     tree = get_active_tree()
     if not tree:
         abort(403)
-    child = Person.query.get_or_404(person_id)
-    if child.tree_id != tree.id:
-        abort(403)
+    child = db.session.get(Person, person_id)
+    if not child or child.tree_id != tree.id:
+        abort(404)
 
     has_father = child.father_id is not None
     has_mother = child.mother_id is not None
@@ -318,9 +318,9 @@ def add_sibling(person_id):
     tree = get_active_tree()
     if not tree:
         abort(403)
-    person = Person.query.get_or_404(person_id)
-    if person.tree_id != tree.id:
-        abort(403)
+    person = db.session.get(Person, person_id)
+    if not person or person.tree_id != tree.id:
+        abort(404)
 
     if request.method == 'POST':
         surname = request.form.get('surname', '').strip()
@@ -401,16 +401,16 @@ def add_step_parent(person_id):
     tree = get_active_tree()
     if not tree:
         abort(403)
-    person = Person.query.get_or_404(person_id)
-    if person.tree_id != tree.id:
-        abort(403)
+    person = db.session.get(Person, person_id)
+    if not person or person.tree_id != tree.id:
+        abort(404)
 
     if request.method == 'POST':
         parent_id = int(request.form.get('parent_id', 0))
         if not parent_id:
             flash('Необходимо выбрать родителя', 'danger')
             return redirect(url_for('relationships.add_step_parent', person_id=person.id))
-        parent = Person.query.get(parent_id)
+        parent = db.session.get(Person, parent_id)
         if not parent or parent.tree_id != tree.id or parent.id not in [person.father_id, person.mother_id]:
             abort(403)
 
@@ -486,9 +486,9 @@ def add_godparent(person_id):
     tree = get_active_tree()
     if not tree:
         abort(403)
-    person = Person.query.get_or_404(person_id)
-    if person.tree_id != tree.id:
-        abort(403)
+    person = db.session.get(Person, person_id)
+    if not person or person.tree_id != tree.id:
+        abort(404)
 
     if request.method == 'POST':
         surname = request.form.get('surname', '').strip()
@@ -559,10 +559,10 @@ def remove_parent(person_id, parent_id):
     tree = get_active_tree()
     if not tree:
         abort(403)
-    person = Person.query.get_or_404(person_id)
-    parent = Person.query.get_or_404(parent_id)
-    if person.tree_id != tree.id or parent.tree_id != tree.id:
-        abort(403)
+    person = db.session.get(Person, person_id)
+    parent = db.session.get(Person, parent_id)
+    if not person or not parent or person.tree_id != tree.id or parent.tree_id != tree.id:
+        abort(404)
 
     if person.father_id == parent.id:
         person.father_id = None
@@ -593,10 +593,10 @@ def remove_sibling(person_id, sibling_id):
     tree = get_active_tree()
     if not tree:
         abort(403)
-    person = Person.query.get_or_404(person_id)
-    sibling = Person.query.get_or_404(sibling_id)
-    if person.tree_id != tree.id or sibling.tree_id != tree.id:
-        abort(403)
+    person = db.session.get(Person, person_id)
+    sibling = db.session.get(Person, sibling_id)
+    if not person or not sibling or person.tree_id != tree.id or sibling.tree_id != tree.id:
+        abort(404)
 
     pid1, pid2 = sorted([person.id, sibling.id])
     link = SiblingLink.query.filter_by(person1_id=pid1, person2_id=pid2, tree_id=tree.id).first()

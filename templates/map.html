@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Карта мест рождения и миграций — «{{ tree.name }}»</h1>
+
+<div id="map" style="width: 100%; height: 600px;"></div>
+
+<script src="https://api-maps.yandex.ru/2.1/?apikey={{ config.YANDEX_MAPS_API_KEY }}&lang=ru_RU" type="text/javascript"></script>
+<script>
+    ymaps.ready(function () {
+        var map = new ymaps.Map('map', {
+            center: [55.76, 37.64],
+            zoom: 4,
+            controls: ['zoomControl', 'searchControl']
+        });
+
+        // Точки (метки)
+        var points = {{ points|tojson }};
+        var geoObjects = [];
+
+        points.forEach(function(p) {
+            var placemark = new ymaps.Placemark([p.lat, p.lon], {
+                balloonContent: '<b>' + p.name + '</b><br>'
+                              + 'Год рождения: ' + (p.birth_year || '?') + '<br>'
+                              + 'Город: ' + p.city + '<br>'
+                              + '<a href="/person/' + p.person_id + '">Открыть карточку</a>'
+            }, {
+                preset: 'islands#icon',
+                iconColor: p.gender === 'M' ? '#1e90ff' : '#ff69b4'
+            });
+            geoObjects.push(placemark);
+        });
+
+        // Линии миграций
+        var migrations = {{ migrations|tojson }};
+        migrations.forEach(function(m) {
+            var polyline = new ymaps.Polyline(
+                [[m.from_lat, m.from_lon], [m.to_lat, m.to_lon]],
+                {},
+                {
+                    strokeColor: '#0000FF',
+                    strokeWidth: 2,
+                    strokeStyle: '1 5'
+                }
+            );
+            // Подпись линии
+            polyline.events.add('mouseenter', function(e) {
+                polyline.options.set('strokeWidth', 4);
+            });
+            polyline.events.add('mouseleave', function(e) {
+                polyline.options.set('strokeWidth', 2);
+            });
+            polyline.properties.set('balloonContent', m.from_name + ' → ' + m.to_name);
+            geoObjects.push(polyline);
+        });
+
+        var clusterer = new ymaps.Clusterer({ groupByCoordinates: false });
+        clusterer.add(geoObjects);
+        map.geoObjects.add(clusterer);
+
+        // Подгонка границ
+        if (points.length > 0) {
+            map.setBounds(map.geoObjects.getBounds(), { checkZoomRange: true, zoomMargin: 9 });
+        }
+    });
+</script>
+{% endblock %}

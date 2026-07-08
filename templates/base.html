@@ -8,92 +8,33 @@
     <!-- PWA -->
     <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
     <meta name="theme-color" content="#212529">
+    <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Семейное древо">
     <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/icon-192x192.png') }}">
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <style>
-        /* Адаптивные улучшения */
-        @media (max-width: 768px) {
-            .table-responsive-stack {
-                display: block;
-            }
-            .table-responsive-stack thead {
-                display: none;
-            }
-            .table-responsive-stack tbody tr {
-                display: block;
-                margin-bottom: 1rem;
-                border: 1px solid #dee2e6;
-                border-radius: 8px;
-                padding: 10px;
-                background: #fff;
-            }
-            .table-responsive-stack td {
-                display: block;
-                border: none;
-                padding: 4px 0;
-            }
-            .table-responsive-stack td::before {
-                content: attr(data-label);
-                font-weight: bold;
-                display: inline-block;
-                width: 120px;
-            }
-        }
-        /* Кнопка Поделиться */
-        #share-install-btn {
-            display: none; /* показывается только в поддерживаемых браузерах */
-        }
-    </style>
 </head>
 <body>
-    <!-- Боковое меню (offcanvas) -->
-    <div class="offcanvas offcanvas-start" tabindex="-1" id="sidebarMenu" aria-labelledby="sidebarMenuLabel">
-        <div class="offcanvas-header">
-            <h5 class="offcanvas-title" id="sidebarMenuLabel">Меню</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
-        </div>
-        <div class="offcanvas-body">
-            <ul class="navbar-nav">
-                {% if current_user.is_authenticated %}
-                    <li class="nav-item"><a class="nav-link" href="{{ url_for('main.tree_detail') }}">Моё дерево</a></li>
-                    <li class="nav-item"><a class="nav-link" href="{{ url_for('auth.profile') }}">Профиль</a></li>
-                    <li class="nav-item"><a class="nav-link" href="{{ url_for('auth.logout') }}">Выйти</a></li>
-                {% else %}
-                    <li class="nav-item"><a class="nav-link" href="{{ url_for('auth.login') }}">Войти</a></li>
-                    <li class="nav-item"><a class="nav-link" href="{{ url_for('auth.register') }}">Регистрация</a></li>
-                {% endif %}
-            </ul>
-            <hr>
-            <!-- Кнопка "Поделиться" для установки PWA -->
-            <button class="btn btn-outline-primary w-100" id="share-install-btn" style="display:none;">
-                📲 Установить приложение
-            </button>
-        </div>
-    </div>
-
-    <!-- Верхняя навигационная панель -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-        <div class="container-fluid">
-            <!-- Кнопка для открытия бокового меню (видна всегда, но особенно удобна на мобильных) -->
-            <button class="btn btn-dark me-2" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebarMenu" aria-controls="sidebarMenu">
-                ☰
-            </button>
+        <div class="container">
             <a class="navbar-brand" href="{{ url_for('main.tree_detail') }}">Семейное древо</a>
-            <div class="d-flex ms-auto">
+            <div class="navbar-nav ms-auto">
                 {% if current_user.is_authenticated %}
-                    <span class="navbar-text me-3 d-none d-lg-inline">{{ current_user.username }}</span>
+                    <a class="nav-link" href="{{ url_for('main.tree_detail') }}">Моё дерево</a>
+                    <a class="nav-link" href="{{ url_for('auth.profile') }}">Профиль</a>
+                    <span class="navbar-text me-3">{{ current_user.username }}</span>
+                    <a class="nav-link" href="{{ url_for('auth.logout') }}">Выйти</a>
+                {% else %}
+                    <a class="nav-link" href="{{ url_for('auth.login') }}">Войти</a>
+                    <a class="nav-link" href="{{ url_for('auth.register') }}">Регистрация</a>
                 {% endif %}
-                <!-- Кнопка Поделиться (для PWA) также в баре -->
-                <button class="btn btn-outline-light btn-sm me-2 d-none d-md-inline" id="share-install-btn-bar" style="display:none;" title="Установить приложение">📲</button>
             </div>
         </div>
     </nav>
 
-    <div class="container-fluid mt-4">
+    <div class="container mt-4">
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 {% for cat, msg in messages %}
@@ -106,43 +47,15 @@
         {% endwith %}
         {% block content %}{% endblock %}
     </div>
+
+    <!-- Bootstrap JS (обязательно для collapse и других компонентов) -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- Блок для дополнительных скриптов -->
     {% block scripts %}{% endblock %}
 
-    <!-- Bootstrap JS и инициализация offcanvas -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Сервис-воркер (регистрируется только если есть файл) -->
     <script>
-        // Показываем кнопку "Поделиться/Установить", если браузер поддерживает PWA и приложение ещё не установлено
-        window.addEventListener('beforeinstallprompt', function(e) {
-            e.preventDefault();
-            window.deferredPrompt = e;
-            document.getElementById('share-install-btn').style.display = 'block';
-            document.getElementById('share-install-btn-bar').style.display = 'inline-block';
-        });
-
-        document.getElementById('share-install-btn')?.addEventListener('click', function() {
-            if (window.deferredPrompt) {
-                window.deferredPrompt.prompt();
-                window.deferredPrompt.userChoice.then(function(choiceResult) {
-                    if (choiceResult.outcome === 'accepted') {
-                        console.log('Пользователь установил приложение');
-                    }
-                    window.deferredPrompt = null;
-                });
-            }
-        });
-        document.getElementById('share-install-btn-bar')?.addEventListener('click', function() {
-            if (window.deferredPrompt) {
-                window.deferredPrompt.prompt();
-                window.deferredPrompt.userChoice.then(function(choiceResult) {
-                    if (choiceResult.outcome === 'accepted') {
-                        console.log('Пользователь установил приложение');
-                    }
-                    window.deferredPrompt = null;
-                });
-            }
-        });
-
-        // Регистрация Service Worker (уже была, но можно оставить)
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', function() {
                 navigator.serviceWorker.register("{{ url_for('static', filename='service-worker.js') }}")
@@ -154,7 +67,6 @@
                     });
             });
         }
-    src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js">
     </script>
 </body>
 </html>

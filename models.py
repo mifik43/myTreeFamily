@@ -19,7 +19,7 @@ class User(UserMixin, db.Model):
 class Tree(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(200), nullable=False)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)   # unique удалён
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     persons = db.relationship('Person', backref='tree', lazy=True)
     permissions = db.relationship('TreePermission', backref='tree', lazy=True)
     invites = db.relationship('Invite', backref='tree', lazy=True)
@@ -27,6 +27,7 @@ class Tree(db.Model):
     def root_persons(self):
         return Person.query.filter_by(tree_id=self.id)\
                            .filter(Person.father_id == None, Person.mother_id == None)\
+                           .filter(Person.deleted_at == None)\
                            .order_by(Person.surname, Person.name).all()
 
 class Person(db.Model):
@@ -60,6 +61,8 @@ class Person(db.Model):
     social_telegram = db.Column(db.String(200), nullable=True)
     social_mail = db.Column(db.String(200), nullable=True)
 
+    deleted_at = db.Column(db.DateTime, nullable=True)
+
     father_id = db.Column(db.Integer, db.ForeignKey('person.id'), nullable=True)
     mother_id = db.Column(db.Integer, db.ForeignKey('person.id'), nullable=True)
 
@@ -69,8 +72,7 @@ class Person(db.Model):
     marriages_as_wife = db.relationship('Marriage', foreign_keys='Marriage.wife_id', backref='wife', lazy=True)
     sibling_links_1 = db.relationship('SiblingLink', foreign_keys='SiblingLink.person1_id', backref='person1', lazy=True)
     sibling_links_2 = db.relationship('SiblingLink', foreign_keys='SiblingLink.person2_id', backref='person2', lazy=True)
-    
-    deleted_at = db.Column(db.DateTime, nullable=True)
+    photos = db.relationship('Photo', backref='person', lazy=True, cascade='all, delete-orphan')
 
     @property
     def full_name(self):
@@ -171,7 +173,7 @@ class Person(db.Model):
     @property
     def is_deleted(self):
         return self.deleted_at is not None
-    
+
 class Marriage(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     husband_id = db.Column(db.Integer, db.ForeignKey('person.id'), nullable=False)
@@ -205,23 +207,29 @@ class Invite(db.Model):
     role = db.Column(db.String(20), default='editor')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-class AuditLog(db.Model):
-    __tablename__ = 'audit_log'
-    id = db.Column(db.Integer, primary_key=True)
-    person_id = db.Column(db.Integer, db.ForeignKey('person.id'), nullable=False)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    action = db.Column(db.String(50), nullable=False)            # 'create', 'update', 'delete', 'merge'
-    old_values = db.Column(db.Text)                              # JSON-строка старых значений
-    new_values = db.Column(db.Text)                              # JSON-строка новых значений
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
-
-    person = db.relationship('Person', backref='audit_logs')
-    user = db.relationship('User', backref='audit_logs')
-
 class Photo(db.Model):
     __tablename__ = 'photo'
     id = db.Column(db.Integer, primary_key=True)
     person_id = db.Column(db.Integer, db.ForeignKey('person.id'), nullable=False)
     filename = db.Column(db.String(300), nullable=False)
     uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
-    person = db.relationship('Person', backref=db.backref('photos', lazy=True, cascade='all, delete-orphan'))
+
+class GeoCache(db.Model):
+    __tablename__ = 'geo_cache'
+    id = db.Column(db.Integer, primary_key=True)
+    place_name = db.Column(db.String(300), unique=True, nullable=False)
+    latitude = db.Column(db.Float, nullable=False)
+    longitude = db.Column(db.Float, nullable=False)
+
+class AuditLog(db.Model):
+    __tablename__ = 'audit_log'
+    id = db.Column(db.Integer, primary_key=True)
+    person_id = db.Column(db.Integer, db.ForeignKey('person.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    action = db.Column(db.String(50), nullable=False)
+    old_values = db.Column(db.Text)
+    new_values = db.Column(db.Text)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+
+    person = db.relationship('Person', backref='audit_logs')
+    user = db.relationship('User', backref='audit_logs')

@@ -8,6 +8,7 @@ from models import (db, Tree, Person, Marriage, SiblingLink,
                     Invite, TreePermission)
 from helpers import get_active_tree, get_active_persons, geocode
 from utils import parse_date, apply_filters
+from extensions import csrf
 import openpyxl
 
 main_bp = Blueprint('main', __name__)
@@ -257,6 +258,7 @@ def trash():
 # ----------------------------------------------------------------------
 @main_bp.route('/tree/export/gedcom')
 @login_required
+@csrf.exempt
 def export_gedcom():
     tree = get_active_tree()
     if not tree:
@@ -340,6 +342,7 @@ def export_gedcom():
 
 @main_bp.route('/tree/import/gedcom', methods=['GET', 'POST'])
 @login_required
+@csrf.exempt
 def import_gedcom():
     tree = get_active_tree()
     if not tree:
@@ -490,6 +493,7 @@ def import_gedcom():
 # ----------------------------------------------------------------------
 @main_bp.route('/tree/export/excel')
 @login_required
+@csrf.exempt
 def export_excel():
     tree = get_active_tree()
     if not tree:
@@ -530,6 +534,7 @@ def export_excel():
 # ----------------------------------------------------------------------
 @main_bp.route('/tree/map')
 @login_required
+@csrf.exempt
 def tree_map():
     tree = get_active_tree()
     if not tree:

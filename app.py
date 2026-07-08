@@ -1,9 +1,12 @@
-import socket
 from flask import Flask
 from config import Config
 from models import db, User
 from flask_login import LoginManager
 from flask_migrate import Migrate
+from flask_mail import Mail
+from extensions import csrf
+
+mail = Mail()
 
 def get_local_ip():
     """Получает локальный IP-адрес для доступа по сети"""
@@ -16,12 +19,14 @@ def get_local_ip():
     except:
         return "не удалось определить"
 
+
 def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
-
     db.init_app(app)
+    mail.init_app(app)
     migrate = Migrate(app, db)
+    csrf.init_app(app)               # инициализация CSRF
 
     login_manager = LoginManager()
     login_manager.init_app(app)

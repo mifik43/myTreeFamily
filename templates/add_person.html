@@ -12,6 +12,7 @@
 </style>
 
 <form method="POST" enctype="multipart/form-data">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="row">
         <div class="col-md-6 mb-3">
             <label>Фамилия *</label>
@@ -171,27 +172,33 @@
 {% block scripts %}
 <script>
     async function removeParent(personId, parentId) {
-        if (!confirm('Удалить родителя?')) return;
-        let response = await fetch(`/person/${personId}/remove_parent/${parentId}`, {
-            method: 'POST'
-        });
-        if (response.ok) {
-            location.reload();
-        } else {
-            alert('Ошибка при удалении родителя');
+    if (!confirm('Удалить родителя?')) return;
+    let response = await fetch(`/person/${personId}/remove_parent/${parentId}`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': csrfToken
         }
+    });
+    if (response.ok) {
+        location.reload();
+    } else {
+        alert('Ошибка при удалении родителя');
     }
+}
 
-    async function deletePhoto(personId, photoId) {
-        if (!confirm('Удалить фото?')) return;
-        let response = await fetch(`/person/${personId}/photo/${photoId}/delete`, {
-            method: 'POST'
-        });
-        if (response.ok) {
-            location.reload();
-        } else {
-            alert('Ошибка при удалении фото');
+async function deletePhoto(personId, photoId) {
+    if (!confirm('Удалить фото?')) return;
+    let response = await fetch(`/person/${personId}/photo/${photoId}/delete`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': csrfToken
         }
+    });
+    if (response.ok) {
+        location.reload();
+    } else {
+        alert('Ошибка при удалении фото');
     }
+}
 </script>
 {% endblock %}

@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>Семейное древо</title>
 
     <!-- PWA -->
@@ -45,16 +46,32 @@
                 {% endfor %}
             {% endif %}
         {% endwith %}
+
         {% block content %}{% endblock %}
     </div>
 
-    <!-- Bootstrap JS (обязательно для collapse и других компонентов) -->
+    <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
-    <!-- Блок для дополнительных скриптов -->
+    <!-- CSRF для AJAX -->
+    <script>
+        const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+        document.addEventListener('submit', function(e) {
+            if (e.target.tagName === 'FORM') {
+                if (!e.target.querySelector('input[name="csrf_token"]')) {
+                    const input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = 'csrf_token';
+                    input.value = csrfToken;
+                    e.target.appendChild(input);
+                }
+            }
+        });
+    </script>
+
     {% block scripts %}{% endblock %}
 
-    <!-- Сервис-воркер (регистрируется только если есть файл) -->
+    <!-- Service Worker -->
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', function() {

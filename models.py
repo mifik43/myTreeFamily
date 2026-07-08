@@ -15,6 +15,8 @@ class User(UserMixin, db.Model):
     maiden_name = db.Column(db.String(100), nullable=True)
     gender = db.Column(db.String(1), nullable=True)
     tree_permissions = db.relationship('TreePermission', backref='user', lazy=True)
+    is_confirmed = db.Column(db.Boolean, default=False)
+    confirmation_token = db.Column(db.String(128), nullable=True, name='uq_user_confirmation_token')
 
 class Tree(db.Model):
     id = db.Column(db.Integer, primary_key=True)
